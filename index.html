@@ -1,1 +1,823 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pasco Site Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:rgba(10,12,16,0.97);--s2:rgba(22,26,32,0.98);--s3:rgba(30,35,43,0.95);
+  --border:rgba(255,255,255,0.09);--border2:rgba(255,255,255,0.18);
+  --text:#f0f2f5;--muted:#8b95a1;--dim:#4a5563;
+  --font:'IBM Plex Sans',system-ui,sans-serif;--mono:'IBM Plex Mono',monospace;
+  --gray:#9ca3af;--blue:#3b82f6;--amber:#f59e0b;--green:#22c55e;--red:#ef4444;--purple:#a855f7;
+}
+html,body{height:100%;overflow:hidden;font-family:var(--font);background:#111;color:var(--text)}
 
+/* AUTH OVERLAY */
+#auth-overlay{
+  position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.92);
+  display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);
+}
+#auth-box{
+  background:#0f1115;border:1px solid rgba(255,255,255,0.15);border-radius:12px;
+  width:440px;max-width:95vw;padding:32px;text-align:center;
+}
+.auth-logo{font-size:28px;margin-bottom:12px}
+.auth-title{font-size:17px;font-weight:600;color:var(--text);margin-bottom:8px}
+.auth-sub{font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:24px}
+.auth-btn{
+  display:inline-flex;align-items:center;gap:10px;
+  padding:12px 24px;background:#fff;border:none;border-radius:8px;
+  font-family:var(--font);font-size:13px;font-weight:500;color:#1f2937;
+  cursor:pointer;transition:all .15s;width:100%;justify-content:center;
+}
+.auth-btn:hover{background:#f3f4f6;transform:translateY(-1px)}
+.auth-btn svg{flex-shrink:0}
+.auth-note{font-size:10px;color:var(--dim);margin-top:16px;line-height:1.5}
+
+/* TOPBAR */
+#topbar{
+  position:fixed;top:0;left:0;right:0;z-index:2000;height:52px;
+  background:rgba(10,12,16,0.97);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 14px;gap:10px;
+  backdrop-filter:blur(12px);
+}
+.logo-group{display:flex;flex-direction:column;flex-shrink:0}
+.logo-main{font-size:14px;font-weight:600;color:var(--text)}
+.logo-sub{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+.divider{width:1px;height:28px;background:var(--border);flex-shrink:0}
+.tbtn{
+  padding:5px 11px;border-radius:5px;font-family:var(--font);font-size:11px;
+  font-weight:500;cursor:pointer;transition:all .15s;white-space:nowrap;flex-shrink:0;border:1px solid;
+}
+.add-btn{border-color:rgba(59,130,246,0.4);background:rgba(59,130,246,0.12);color:#93c5fd}
+.add-btn:hover{background:rgba(59,130,246,0.25)}
+.exp-btn{border-color:rgba(34,197,94,0.35);background:rgba(34,197,94,0.1);color:#86efac}
+.exp-btn:hover{background:rgba(34,197,94,0.2)}
+.filters{display:flex;gap:5px;overflow-x:auto;flex-shrink:1}
+.filters::-webkit-scrollbar{display:none}
+.fc{display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:5px;
+  border:1px solid var(--border);font-size:11px;font-weight:500;cursor:pointer;
+  white-space:nowrap;background:rgba(255,255,255,0.03);color:var(--muted);transition:all .15s}
+.fc .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.fc.active{color:#fff;border-color:transparent}
+.fc.active[data-s="all"]{background:rgba(255,255,255,0.12);border-color:rgba(255,255,255,0.2)}
+.fc.active[data-s="Pending"]{background:rgba(156,163,175,.2);border-color:var(--gray)}
+.fc.active[data-s="Reached Out"]{background:rgba(59,130,246,.2);border-color:var(--blue)}
+.fc.active[data-s="Engaged"]{background:rgba(245,158,11,.2);border-color:var(--amber)}
+.fc.active[data-s="Under LOI"]{background:rgba(34,197,94,.2);border-color:var(--green)}
+.fc.active[data-s="Dead"]{background:rgba(239,68,68,.2);border-color:var(--red)}
+.right-bar{margin-left:auto;display:flex;align-items:center;gap:10px;flex-shrink:0}
+.map-toggle{display:flex;border:1px solid var(--border);border-radius:5px;overflow:hidden}
+.map-btn{padding:4px 9px;font-size:10px;font-weight:500;font-family:var(--font);cursor:pointer;
+  background:transparent;color:var(--muted);border:none;letter-spacing:.05em;text-transform:uppercase;transition:all .15s}
+.map-btn.active{background:rgba(255,255,255,0.12);color:var(--text)}
+#sync-wrap{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--dim)}
+#sync-dot{width:6px;height:6px;border-radius:50%;background:var(--green);flex-shrink:0;transition:background .3s}
+#sync-dot.saving{background:var(--amber);animation:pulse 1s infinite}
+#sync-dot.error{background:var(--red)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.pcount{font-size:11px;color:var(--dim);white-space:nowrap}
+
+/* MAP */
+#map{position:fixed;top:52px;left:0;right:0;bottom:0;z-index:1;background:#1a1f2e}
+
+/* PANEL */
+#panel{
+  position:fixed;top:52px;right:0;bottom:0;width:370px;z-index:1500;
+  background:rgba(10,12,16,0.97);border-left:1px solid var(--border);
+  backdrop-filter:blur(20px);display:flex;flex-direction:column;
+  transform:translateX(100%);transition:transform .26s cubic-bezier(.4,0,.2,1);
+}
+#panel.open{transform:translateX(0)}
+#ph{padding:16px 18px 12px;border-bottom:1px solid var(--border);flex-shrink:0;position:relative}
+.pbadge{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:4px;
+  font-size:10px;font-weight:500;letter-spacing:.06em;margin-bottom:8px;text-transform:uppercase}
+.pdot{width:7px;height:7px;border-radius:50%}
+.paddr{font-size:14px;font-weight:600;line-height:1.3;margin-bottom:2px}
+.powner{font-size:11px;color:var(--muted);margin-bottom:1px}
+.pdetail{font-size:10px;color:var(--dim)}
+.oz-badge{background:rgba(168,85,247,.15);border:1px solid rgba(168,85,247,.4);color:#c4b5fd;
+  font-size:9px;font-weight:600;padding:1px 6px;border-radius:3px;letter-spacing:.06em;text-transform:uppercase;margin-left:4px}
+#pclose{position:absolute;top:12px;right:12px;width:26px;height:26px;border-radius:4px;
+  background:rgba(255,255,255,0.05);border:1px solid var(--border);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px;transition:all .12s}
+#pclose:hover{color:var(--text);background:rgba(255,255,255,0.1)}
+
+/* STATUS */
+#status-wrap{padding:10px 18px;border-bottom:1px solid var(--border);flex-shrink:0}
+.field-label{font-size:9px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin-bottom:5px}
+.status-pills{display:flex;gap:4px;flex-wrap:wrap}
+.sp{padding:3px 9px;border-radius:4px;font-size:10.5px;font-weight:500;cursor:pointer;
+  border:1px solid var(--border);color:var(--muted);background:transparent;transition:all .15s}
+.sp:hover{border-color:var(--border2);color:var(--text)}
+.sp.sel-Pending{background:rgba(156,163,175,.2);border-color:var(--gray);color:#d1d5db}
+.sp.sel-Reached\ Out{background:rgba(59,130,246,.2);border-color:var(--blue);color:#93c5fd}
+.sp.sel-Engaged{background:rgba(245,158,11,.2);border-color:var(--amber);color:#fcd34d}
+.sp.sel-Under\ LOI{background:rgba(34,197,94,.2);border-color:var(--green);color:#86efac}
+.sp.sel-Dead{background:rgba(239,68,68,.2);border-color:var(--red);color:#fca5a5}
+
+/* LAST CONTACT */
+#lc-wrap{padding:8px 18px;border-bottom:1px solid var(--border);flex-shrink:0;
+  display:flex;align-items:center;gap:10px}
+.lc-lbl{font-size:9px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--dim);white-space:nowrap;flex-shrink:0}
+#lc-input{background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:4px;
+  padding:4px 8px;color:var(--text);font-family:var(--font);font-size:11px;flex:1;min-width:0;
+  transition:border-color .15s;color-scheme:dark}
+#lc-input:focus{outline:none;border-color:var(--border2)}
+
+/* STATS */
+.srow{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;padding:10px 18px;
+  border-bottom:1px solid var(--border);flex-shrink:0}
+.sm{background:rgba(255,255,255,0.04);border-radius:4px;padding:7px 8px;text-align:center;border:1px solid var(--border)}
+.smv{font-size:13px;font-weight:600}
+.sml{font-size:9px;color:var(--dim);margin-top:1px;letter-spacing:.05em;text-transform:uppercase}
+
+/* NOTES */
+#notes-wrap{padding:8px 18px;border-bottom:1px solid var(--border);flex-shrink:0}
+#notes-field{width:100%;background:rgba(255,255,255,0.04);border:1px solid var(--border);
+  border-radius:4px;padding:7px 9px;color:var(--text);font-family:var(--font);
+  font-size:11px;line-height:1.55;resize:none;min-height:68px;max-height:130px;transition:border-color .15s}
+#notes-field::placeholder{color:var(--dim)}
+#notes-field:focus{outline:none;border-color:var(--border2)}
+.save-row{display:flex;justify-content:space-between;align-items:center;margin-top:5px}
+.save-hint{font-size:9px;color:var(--dim)}
+.save-btn{padding:3px 10px;border-radius:4px;border:1px solid var(--border2);
+  background:rgba(255,255,255,0.05);color:var(--muted);font-family:var(--font);
+  font-size:10px;cursor:pointer;transition:all .15s}
+.save-btn:hover{background:rgba(255,255,255,0.1);color:var(--text)}
+
+/* SECTIONS */
+#pb{flex:1;overflow-y:auto;padding:4px 0}
+#pb::-webkit-scrollbar{width:3px}
+#pb::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.08);border-radius:2px}
+.sec{border-bottom:1px solid var(--border)}
+.stog{width:100%;padding:9px 18px;display:flex;align-items:center;justify-content:space-between;
+  background:transparent;border:none;cursor:pointer;color:var(--text);font-family:var(--font);
+  font-size:9px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;text-align:left;transition:background .1s}
+.stog:hover{background:rgba(255,255,255,0.03)}
+.chev{width:11px;height:11px;color:var(--dim);transition:transform .18s;flex-shrink:0}
+.stog.exp .chev{transform:rotate(180deg)}
+.sc{padding:2px 18px 10px;display:none}
+.sc.open{display:block}
+.dr{display:flex;justify-content:space-between;align-items:flex-start;
+  padding:4px 0;gap:10px;border-bottom:1px solid rgba(255,255,255,0.04)}
+.dr:last-child{border:none}
+.dl{font-size:10.5px;color:var(--muted);flex-shrink:0;padding-top:1px}
+.dv{font-size:10.5px;color:var(--text);text-align:right;word-break:break-word;line-height:1.4}
+.tag{display:inline-block;background:rgba(255,255,255,0.06);border:1px solid var(--border);
+  border-radius:3px;padding:1px 6px;font-size:9.5px;color:var(--muted);margin:2px 2px 0 0}
+.cx-link{display:block;font-size:10px;color:var(--blue);text-decoration:none;margin-top:6px;word-break:break-all}
+.cx-link:hover{text-decoration:underline}
+
+/* SUMBAR */
+#sumbar{position:fixed;bottom:12px;left:12px;z-index:400;display:flex;gap:5px;flex-wrap:wrap}
+.sc2{background:rgba(10,12,16,0.92);border:1px solid var(--border);border-radius:5px;
+  padding:4px 10px;font-size:10px;color:var(--muted);display:flex;align-items:center;gap:5px;
+  backdrop-filter:blur(8px)}
+.sc2 .dot{width:6px;height:6px;border-radius:50%}
+.sc2 strong{color:var(--text)}
+
+/* ADD MODAL */
+#modal-overlay{position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,0.75);
+  display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+#modal-overlay.open{display:flex}
+#modal{background:#0f1115;border:1px solid rgba(255,255,255,0.14);border-radius:10px;
+  width:490px;max-width:95vw;max-height:88vh;overflow-y:auto;font-family:var(--font)}
+#modal::-webkit-scrollbar{width:3px}
+#modal::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1)}
+.mh{padding:16px 20px 12px;border-bottom:1px solid var(--border);
+  display:flex;justify-content:space-between;align-items:center}
+.mt{font-size:14px;font-weight:600;color:var(--text)}
+.mx{background:none;border:none;color:var(--muted);cursor:pointer;font-size:17px;line-height:1}
+.mx:hover{color:var(--text)}
+.mb{padding:16px 20px}
+.fg-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fg-full{grid-template-columns:1fr}
+.fg{display:flex;flex-direction:column;gap:4px}
+.fg label{font-size:9px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--dim)}
+.fg input,.fg select,.fg textarea{
+  background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);
+  border-radius:4px;padding:7px 9px;color:var(--text);font-family:var(--font);
+  font-size:11.5px;width:100%;transition:border-color .15s;}
+.fg input::placeholder,.fg textarea::placeholder{color:var(--dim)}
+.fg input:focus,.fg select:focus,.fg textarea:focus{outline:none;border-color:rgba(255,255,255,0.25)}
+.fg select option{background:#0f1115}
+.geo-row{display:flex;gap:7px;align-items:flex-end}
+.geo-row input{flex:1}
+.geo-btn{padding:7px 11px;background:rgba(59,130,246,0.18);border:1px solid rgba(59,130,246,0.4);
+  border-radius:4px;color:#93c5fd;font-family:var(--font);font-size:11px;cursor:pointer;transition:all .15s;white-space:nowrap}
+.geo-btn:hover{background:rgba(59,130,246,0.3)}
+.geo-res{font-size:9.5px;color:var(--dim);margin-top:2px;min-height:13px}
+.geo-res.ok{color:var(--green)}.geo-res.err{color:var(--red)}
+.sdiv{font-size:9px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);
+  padding:8px 0 5px;border-top:1px solid rgba(255,255,255,0.06);margin-top:6px}
+.mf{padding:12px 20px 16px;border-top:1px solid var(--border);
+  display:flex;justify-content:flex-end;gap:8px}
+.btn-c{padding:7px 14px;background:transparent;border:1px solid rgba(255,255,255,0.1);
+  border-radius:4px;color:var(--muted);cursor:pointer;font-family:var(--font);font-size:11px}
+.btn-c:hover{border-color:var(--border2);color:var(--text)}
+.btn-s{padding:7px 16px;background:rgba(59,130,246,0.22);border:1px solid rgba(59,130,246,0.5);
+  border-radius:4px;color:#93c5fd;cursor:pointer;font-family:var(--font);font-size:11px;font-weight:500;transition:all .15s}
+.btn-s:hover{background:rgba(59,130,246,0.38)}
+
+/* TOAST */
+#toast{position:fixed;bottom:70px;left:50%;transform:translateX(-50%);
+  background:#0f1115;border:1px solid rgba(255,255,255,0.15);border-radius:7px;
+  padding:10px 18px;font-size:11.5px;color:var(--text);z-index:8000;
+  display:none;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,0.5)}
+#toast.show{display:block;animation:fadeUp .25s ease}
+@keyframes fadeUp{from{opacity:0;transform:translateX(-50%) translateY(8px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+
+.gm-style-iw-d{font-family:var(--font)!important}
+.gm-ui-hover-effect,.gmnoprint,.gm-fullscreen-control{display:none!important}
+.gm-style .gm-style-iw-c{padding:12px 14px!important;background:#0f1115!important;
+  border:1px solid rgba(255,255,255,0.15)!important;border-radius:8px!important;
+  box-shadow:0 4px 20px rgba(0,0,0,.6)!important}
+.gm-style .gm-style-iw-tc::after{background:#0f1115!important}
+</style>
+</head>
+<body>
+
+<!-- AUTH OVERLAY -->
+<div id="auth-overlay">
+  <div id="auth-box">
+    <div class="auth-logo">📍</div>
+    <div class="auth-title">Pasco Site Tracker</div>
+    <div class="auth-sub">Sign in with your Google account to load the live parcel map.<br>Your changes sync directly to Google Sheets in real time.</div>
+    <button class="auth-btn" onclick="signIn()">
+      <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 0 0 2.38-5.88c0-.57-.05-.66-.15-1.18z"/><path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2a4.8 4.8 0 0 1-7.18-2.54H1.83v2.07A8 8 0 0 0 8.98 17z"/><path fill="#FBBC05" d="M4.5 10.52a4.8 4.8 0 0 1 0-3.04V5.41H1.83a8 8 0 0 0 0 7.18l2.67-2.07z"/><path fill="#EA4335" d="M8.98 4.18c1.17 0 2.23.4 3.06 1.2l2.3-2.3A8 8 0 0 0 1.83 5.4L4.5 7.49a4.77 4.77 0 0 1 4.48-3.3z"/></svg>
+      Sign in with Google
+    </button>
+    <div class="auth-note">Uses Google OAuth — your credentials are never stored in this app.<br>gregg.bazzani1@gmail.com or any Google account with Sheet access.</div>
+  </div>
+</div>
+
+<!-- TOPBAR -->
+<div id="topbar">
+  <div class="logo-group">
+    <div class="logo-main">Pasco Site Tracker</div>
+    <div class="logo-sub">SR-52 Corridor · 111 Parcels</div>
+  </div>
+  <div class="divider"></div>
+  <button class="tbtn add-btn" onclick="openAddModal()">+ Add Parcel</button>
+  <button class="tbtn exp-btn" onclick="exportCSV()">↓ Export CSV</button>
+  <div class="filters">
+    <div class="fc active" data-s="all">All</div>
+    <div class="fc" data-s="Pending"><div class="dot" style="background:var(--gray)"></div>Pending</div>
+    <div class="fc" data-s="Reached Out"><div class="dot" style="background:var(--blue)"></div>Reached Out</div>
+    <div class="fc" data-s="Engaged"><div class="dot" style="background:var(--amber)"></div>Engaged</div>
+    <div class="fc" data-s="Under LOI"><div class="dot" style="background:var(--green)"></div>Under LOI</div>
+    <div class="fc" data-s="Dead"><div class="dot" style="background:var(--red)"></div>Dead / No</div>
+  </div>
+  <div class="right-bar">
+    <div class="map-toggle">
+      <button class="map-btn active" id="btn-hybrid" onclick="setMapType('hybrid')">Satellite</button>
+      <button class="map-btn" id="btn-road" onclick="setMapType('roadmap')">Road</button>
+    </div>
+    <div id="sync-wrap"><div id="sync-dot"></div><span id="sync-text">Loading…</span></div>
+    <div class="pcount" id="pcount">111 parcels</div>
+  </div>
+</div>
+
+<div id="map"></div>
+
+<!-- SIDE PANEL -->
+<div id="panel">
+  <div id="ph">
+    <div class="pbadge" id="pbadge"><div class="pdot" id="pbadge-dot"></div><span id="pbadge-text"></span></div>
+    <div class="paddr" id="paddr"></div>
+    <div class="powner" id="powner"></div>
+    <div class="pdetail" id="pdetail"></div>
+    <button id="pclose" onclick="closePanel()">✕</button>
+  </div>
+  <div id="status-wrap">
+    <div class="field-label">Status</div>
+    <div class="status-pills">
+      <div class="sp" data-sv="Pending" onclick="setStatus('Pending')">Pending</div>
+      <div class="sp" data-sv="Reached Out" onclick="setStatus('Reached Out')">Reached Out</div>
+      <div class="sp" data-sv="Engaged" onclick="setStatus('Engaged')">Engaged</div>
+      <div class="sp" data-sv="Under LOI" onclick="setStatus('Under LOI')">Under LOI</div>
+      <div class="sp" data-sv="Dead" onclick="setStatus('Dead')">Dead / No</div>
+    </div>
+  </div>
+  <div id="lc-wrap">
+    <div class="lc-lbl">Last Contact</div>
+    <input type="date" id="lc-input" onchange="saveField('lastContacted', this.value)">
+  </div>
+  <div class="srow" id="srow"></div>
+  <div id="notes-wrap">
+    <div class="field-label">Notes</div>
+    <textarea id="notes-field" rows="3" placeholder="Call notes, follow-up items, owner sentiment…"></textarea>
+    <div class="save-row">
+      <span class="save-hint">Auto-saves as you type</span>
+      <button class="save-btn" onclick="saveField('notes', document.getElementById('notes-field').value)">Save</button>
+    </div>
+  </div>
+  <div id="pb"></div>
+</div>
+
+<div id="sumbar"></div>
+
+<!-- ADD PARCEL MODAL -->
+<div id="modal-overlay">
+  <div id="modal">
+    <div class="mh"><div class="mt">Add New Parcel</div><button class="mx" onclick="closeModal()">✕</button></div>
+    <div class="mb">
+      <div class="fg-grid fg-full">
+        <div class="fg">
+          <label>Street Address</label>
+          <div class="geo-row">
+            <input type="text" id="f-address" placeholder="12345 SR 52, Hudson, FL 34669">
+            <button class="geo-btn" onclick="geocodeAddress()">Locate ↗</button>
+          </div>
+          <div class="geo-res" id="geo-res">Enter address then click Locate to pin on map</div>
+        </div>
+      </div>
+      <div class="fg-grid" style="margin-top:10px">
+        <div class="fg"><label>Latitude</label><input type="number" id="f-lat" placeholder="28.3307" step="0.000001"></div>
+        <div class="fg"><label>Longitude</label><input type="number" id="f-lng" placeholder="-82.6952" step="0.000001"></div>
+      </div>
+      <div class="sdiv">Property</div>
+      <div class="fg-grid">
+        <div class="fg"><label>Type</label>
+          <select id="f-type"><option value="Land" selected>Land</option><option value="Retail">Retail</option><option value="Office">Office</option><option value="Mixed Use">Mixed Use</option><option value="Industrial">Industrial</option><option value="Multifamily">Multifamily</option><option value="Residential">Residential</option><option value="Special Purpose">Special Purpose</option></select>
+        </div>
+        <div class="fg"><label>Zoning</label><input type="text" id="f-zoning" placeholder="C2, AR, MPUD…"></div>
+        <div class="fg"><label>Acres</label><input type="number" id="f-acres" placeholder="2.5" step="0.01"></div>
+        <div class="fg"><label>Opp Zone</label><select id="f-oz"><option value="No" selected>No</option><option value="Yes">Yes</option></select></div>
+        <div class="fg"><label>Assessed Value</label><input type="text" id="f-aval" placeholder="$450,000"></div>
+        <div class="fg"><label>Annual Taxes</label><input type="text" id="f-taxes" placeholder="$6,200"></div>
+      </div>
+      <div class="sdiv">Owner & Contact</div>
+      <div class="fg-grid">
+        <div class="fg"><label>Owner Name</label><input type="text" id="f-owner" placeholder="Smith Family Trust"></div>
+        <div class="fg"><label>Contact Name</label><input type="text" id="f-contact" placeholder="John Smith"></div>
+        <div class="fg"><label>Phone</label><input type="text" id="f-phone" placeholder="(727) 555-0100"></div>
+        <div class="fg"><label>Email</label><input type="text" id="f-email" placeholder="owner@email.com"></div>
+      </div>
+      <div class="sdiv">Outreach</div>
+      <div class="fg-grid">
+        <div class="fg"><label>Initial Status</label>
+          <select id="f-status"><option value="Pending" selected>Pending</option><option value="Reached Out">Reached Out</option><option value="Engaged">Engaged</option><option value="Dead">Dead / No</option></select>
+        </div>
+        <div class="fg"><label>Crexi / Source Link</label><input type="text" id="f-cx" placeholder="https://…"></div>
+      </div>
+      <div class="fg-grid fg-full" style="margin-top:8px">
+        <div class="fg"><label>Notes</label><textarea id="f-notes" rows="2" placeholder="Source, initial observations…"></textarea></div>
+      </div>
+    </div>
+    <div class="mf">
+      <button class="btn-c" onclick="closeModal()">Cancel</button>
+      <button class="btn-s" onclick="confirmAdd()">Add to Map</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── CONFIG ────────────────────────────────────────────────────────
+const GMAPS_KEY = 'AIzaSyBL8yJWSamzDDCXmw61YJaotRo3WOXsYrc';
+const SHEET_ID  = '1hMIfJ-E1rqziTBVEE0vqhDqJtQDcJwxE';
+const SHEET_TAB = 'Pasco RT 52';
+// Columns in the Sheet where we write live data (zero-indexed)
+// We'll use columns 31-34: Status, Notes, LastContacted, LastUpdated
+const COL_STATUS = 31, COL_NOTES = 32, COL_LC = 33, COL_UPDATED = 34;
+
+const SC = {Pending:'#9ca3af','Reached Out':'#3b82f6',Engaged:'#f59e0b','Under LOI':'#22c55e',Dead:'#ef4444'};
+
+// Base parcel data (static from Sheet import)
+const PARCELS = [{"id":1,"address":"7214 STATE RD 52, HUDSON, FL 34667-6709","city":"HUDSON","lat":28.330741,"lng":-82.695249,"type":"Office","zoning":"C2","oppZone":"No","acres":2.14,"assessedVal":"$1,146,154","taxes":"$18,087","ownerName":"MAI MANAGEMENT & DEVELOPMENT GROUP LLC","ownerMailCity":"ODESSA","ownerMailState":"FL","contactName":"Thanh Mai","phones":["(727) 502-7062","(205) 229-5636","(813) 510-3828"],"emails":["thanhtmai@hotmail.com","onemailaday@gmail.com"],"notes":"Spoke to office - sent email to office email. Did not find cell.","status":"Reached Out","sheet":"Pasco RT 52","cxLink":"https://www.crexi.com/property-records/10-25-16-0050-01900-0020-HUDSON-FL-34667-6709/5bfe7213d77efd8594bc0867ca42e803e6f20bcd"},{"id":2,"address":"7236 STATE RD 52, HUDSON, FL 34667-6789","city":"HUDSON","lat":28.330801,"lng":-82.694537,"type":"Retail","zoning":"C2","oppZone":"No","acres":0.84,"assessedVal":"$682,839","taxes":"$13,442","ownerName":"TTTT LLC","ownerMailCity":"TAMPA","ownerMailState":"FL","contactName":"Tony Tanoukhi","phones":["(813) 732-1615","(813) 373-6255","(813) 986-5598"],"emails":["suzyk000@hotmail.com"],"notes":"Small target just assemblage opp","status":"Reached Out","sheet":"Pasco RT 52","cxLink":"https://www.crexi.com/property-records/10-25-16-0050-01900-0030-HUDSON-FL-34667-6789/36eb1fdeefc22007263feba0aeecf61016762db7"},{"id":3,"address":"7419 STATE RD 52, HUDSON, FL 34667-6714","city":"HUDSON","lat":28.331821,"lng":-82.691794,"type":"Retail","zoning":"C2","oppZone":"Yes","acres":1.11,"assessedVal":"$779,649","taxes":"$7,200","ownerName":"BARNETT BANK OF PASCO COUNTY","ownerMailCity":"CHARLOTTE","ownerMailState":"NC","contactName":"Robert Hall","phones":["(813) 787-8119","(214) 457-6974","(214) 713-0819"],"emails":["wjrhall@gmail.com","eric_elizondo@hotmail.com"],"notes":"Sheila Cribb will send intro email to current BoA disposition person. Sent email to Joe McCarthy. McCarthy responded - not selling","status":"Dead","sheet":"Pasco RT 52","cxLink":"https://www.crexi.com/property-records/03-25-16-0030-06000-0040-HUDSON-FL-34667-6714/1b59bc04b8673070bff623c011311fdfadb20ed1"},{"id":4,"address":"HUDSON, FL 34667","city":"HUDSON","lat":28.33183,"lng":-82.691305,"type":"Land","zoning":"C2","oppZone":"Yes","acres":0.68,"assessedVal":"$48,994","taxes":"$712","ownerName":"BARNETT BANK OF PASCO COUNTY","ownerMailCity":"CHARLOTTE","ownerMailState":"NC","contactName":"\u2014","phones":[],"emails":[],"notes":"Assemblage w BOA","status":"Reached Out","sheet":"Pasco RT 52","cxLink":"https://www.crexi.com/property-records/03-25-16-0030-06000-0020-HUDSON-FL-34667/59e5ceddba32accbe2479a874e033e5672cf6995"},{"id":5,"address":"7434 NEVA LN, PORT RICHEY, FL 34668","city":"PORT RICHEY","lat":28.330519,"lng":-82.690516,"type":"Land","zoning":"C1","oppZone":"No","acres":0.67,"assessedVal":"$35,104","taxes":"$586","ownerName":"CULLARI ELAINE","ownerMailCity":"NEW PORT RICHEY","ownerMailState":"FL","contactName":"ELAINE CULLARI","phones":["(727) 862-0000","(352) 592-0003","(352) 596-0003"],"emails":["ECULLARI@AOL.COM"],"notes":"property behind Regions - Ellaine Cullari - 727.645.3162. Call again and leave voicemail next time.","status":"Reached Out","sheet":"Pasco RT 52","cxLink":"https://www.crexi.com/property-records/10-25-16-0570-00000-00C5-PORT-RICHEY-FL-34668/c315e3a73840fe20dbb66051b82622ed6fc525e2"},{"id":6,"address":"7512 STATE RD 52, HUDSON, FL 34667-6715","city":"HUDSON","lat":28.330901,"lng":-82.690464,"type":"Retail","zoning":"C1","oppZone":"No","acres":1.17,"assessedVal":"$612,428","taxes":"$6,617","ownerName":"AMSOUTH BANK OF FLORIDA","ownerMailCity":"HOOVER","ownerMailState":"AL","contactName":"Dennona Pittman","phones":["(731) 413-7386","(731) 635-3695","(731) 635-1960"],"emails":["cllgal2005@gmail.com","dennonap@yahoo.com"],"notes":"Sent Linkedin message to Tom LaBelle - regional real estate manager regions bank","status":"Reached Out","sheet":"Pasco RT 52","cxLink":"https://www.crexi.com/property-records/10-25-16-0570-00000-00C1-HUDSON-FL-34667-6715/8f426cfaacad3de4dd9d2f76f2f26e1189068187"},{"id":7,"address":"7612 STATE RD 52, HUDSON, FL 34667-6717","city":"HUDSON","lat":28.330877,"lng":-82.688579,"type":"Retail","zoning":"C2","oppZone":"No","acres":1.17,"assessedVal":"$621,631","taxes":"$6,608","ownerName":"TAMPA ACQUISITIONS INC","ownerMailCity":"BRANDON","ownerMailState":"FL","contactName":"Bmck Inc","phones":[],"emails":["j.wirts@apecgas.com"],"notes":"Factory Direct Marine - call business - nice guy but low prob","status":"Dead","sheet":"Pasco RT 52","cxLink":"https://www.crexi.com/property-records/03-25-16-0030-04700-0102-HUDSON-FL-34667/1781ac89625b5210ffbcb7fd33e3c82c1bad56e3"},{"id":8,"address":"7621 STATE RD 52, HUDSON, FL 34667","city":"HUDSON","lat":28.331837,"lng":-82.688438,"type":"Land","zoning":"C2","oppZone":"Yes","acres":0.85,"assessedVal":"$180,680","taxes":"$3,061","ownerName":"PRICE ERIC D","ownerMailCity":"SPRING HILL","ownerMailState":"FL","contactName":"Eric Price","phones":["(256) 996-6633","(423) 756-8516"],"emails":[],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":"https://www.crexi.com/property-records/03-25-16-0000-00100-0041-HUDSON-FL-34667-6720/ad1ab4a4493b0b31df0d58faeec822601821b641"},{"id":9,"address":"7709 STATE RD 52, HUDSON, FL 34667-6720","city":"HUDSON","lat":28.331795,"lng":-82.68723,"type":"Special Purpose","zoning":"C2","oppZone":"Yes","acres":1.23,"assessedVal":"$364,698","taxes":"$5,818","ownerName":"KADUK INVESTMENTS INC","ownerMailCity":"NEW PORT RICHEY","ownerMailState":"FL","contactName":"Newell Grove","phones":["(603) 568-3613","(813) 585-2090","(727) 494-0443"],"emails":[],"notes":"Funeral Home, Corner Site","status":"Reached Out","sheet":"Pasco RT 52","cxLink":"https://www.crexi.com/property-records/02-25-16-0000-00300-0042-HUDSON-FL-34667/8a4ed8c5e4a874f8bdb5289b294e6ca1f3e95ebc"},{"id":10,"address":"HUDSON, FL 34667","city":"HUDSON","lat":28.331893,"lng":-82.679455,"type":"Land","zoning":"C2","oppZone":"Yes","acres":1.4,"assessedVal":"$212,553","taxes":"$2,639","ownerName":"PORTERA LIBORIO & STAVROULA LIVING TRUST","ownerMailCity":"PORT RICHEY","ownerMailState":"FL","contactName":"Liborio Portera","phones":["(727) 862-5983","(727) 869-2572","(727) 862-5383"],"emails":["lilbadgurl8302003@yahoo.com","lportera@gmail.com"],"notes":"Spoke to wife. 727.862.5983. Said to call husband. Husband - Leo - 727.863.0965. Try again","status":"Reached Out","sheet":"Pasco RT 52","cxLink":"https://www.crexi.com/property-records/02-25-16-0000-00300-0044-HUDSON-FL-34667-6730/0f891eab2b64014f8dece44573ade4fb27ea32f0"},{"id":11,"address":"8207 STATE RD 52, HUDSON, FL 34667-6730","city":"HUDSON","lat":28.331864,"lng":-82.679046,"type":"Office","zoning":"C2","oppZone":"Yes","acres":1.07,"assessedVal":"$343,455","taxes":"$5,638","ownerName":"GTC LLLP","ownerMailCity":"NEW PORT RICHEY","ownerMailState":"FL","contactName":"Brian Trott","phones":["(727) 858-9636","(508) 365-4883","(508) 365-3316"],"emails":["briantrott@ymail.com","briantrott@aol.com"],"notes":"Spoke to Drew Gilmore - will send other leads, plus larger neighbor property","status":"Reached Out","sheet":"Pasco RT 52","cxLink":"https://www.crexi.com/property-records/02-25-16-0000-00300-0041-HUDSON-FL-34667-6730/1e6b703cacdcf69b188af3b48f7299310ba58712"},{"id":12,"address":"8219 STATE RD 52, HUDSON, FL 34667-6730","city":"HUDSON","lat":28.331858,"lng":-82.678699,"type":"Office","zoning":"C2","oppZone":"Yes","acres":1.08,"assessedVal":"$356,003","taxes":"$5,877","ownerName":"R & J PROPERTIES OF PASCO INC","ownerMailCity":"HOLIDAY","ownerMailState":"FL","contactName":"Julie Disbrow","phones":["(727) 919-1957","(727) 514-4927","(727) 372-2458"],"emails":["julieanne1107@aol.com","julie.disbrow@bellsouth.net"],"notes":"Spoke to Drew Gilmore - will send other leads, plus larger neighbor property","status":"Reached Out","sheet":"Pasco RT 52","cxLink":"https://www.crexi.com/property-records/02-25-16-0000-00300-0045-HUDSON-FL-34667/ccc62b1f0d6a907b7034bbc7134b72871cb72a01"},{"id":13,"address":"HUDSON, FL 34667","city":"HUDSON","lat":28.331914,"lng":-82.677886,"type":"Land","zoning":"C2","oppZone":"Yes","acres":3.69,"assessedVal":"$57,290","taxes":"$708","ownerName":"BOYCE W H & R & J PROPERTIES OF PASCO INC","ownerMailCity":"HOLIDAY","ownerMailState":"FL","contactName":"Richy Lamb","phones":["(727) 243-2539","(727) 861-2955","(727) 849-9234"],"emails":[],"notes":"Drew contacting him?","status":"Reached Out","sheet":"Pasco RT 52","cxLink":"https://www.crexi.com/property-records/11-25-16-0010-00100-0000-PORT-RICHEY-FL-34668/ae9d0c7766a2912f56b06a0a0022b4dc8356b58a"},{"id":14,"address":"11919 NATURE TR, PORT RICHEY, FL 34668","city":"PORT RICHEY","lat":28.329566,"lng":-82.675944,"type":"Land","zoning":"C2","oppZone":"No","acres":12.13,"assessedVal":"$1,244,245","taxes":"$25,690","ownerName":"11919 NATURE TRAIL LLC","ownerMailCity":"BOCA RATON","ownerMailState":"FL","contactName":"John Neely","phones":["(717) 456-2905","(727) 869-0064","(727) 862-6126"],"emails":["johnneely43@yahoo.com","johnneely4@gmail.com"],"notes":"Affordable Housing development","status":"Reached Out","sheet":"Pasco RT 52","cxLink":"https://www.crexi.com/property-records/02-25-16-0000-00300-0040-HUDSON-FL-34667/693578fb08886f2936ff3a46998a8bab7aa5f152"},{"id":15,"address":"HUDSON, FL 34667","city":"HUDSON","lat":28.332138,"lng":-82.675735,"type":"Industrial","zoning":"PUD","oppZone":"Yes","acres":11.83,"assessedVal":"$2,396","taxes":"$41","ownerName":"FERNALD L F TRUST GARDNER","ownerMailCity":"MONTGOMERY","ownerMailState":"AL","contactName":"Eva Frieden","phones":["(334) 324-8939","(334) 414-1105","(770) 402-0977"],"emails":["bellmarketing@comcast.net","elijahsmama1108@yahoo.com"],"notes":"Spoke to Mark Friedan - open to a sale / jv but we need to learn more on environmental","status":"Reached Out","sheet":"Pasco RT 52","cxLink":"https://www.crexi.com/property-records/11-25-16-0010-00100-0020-HUDSON-FL-34667-6733/eb682779658dd65c5b131e86fb69e7966c474579"},{"id":16,"address":"8434 STATE RD 52, HUDSON, FL 34667-6733","city":"HUDSON","lat":28.330546,"lng":-82.674972,"type":"Land","zoning":"C2","oppZone":"No","acres":0.95,"assessedVal":"$300,300","taxes":"$3,802","ownerName":"ST MARIAM ENTERPRISE INC","ownerMailCity":"SAINT PETERSBURG","ownerMailState":"FL","contactName":"Akram Khan","phones":["(727) 458-6163","(516) 242-5430","(847) 624-2414"],"emails":["zebkhan2003@yahoo.com","khan.akram@yahoo.com"],"notes":"Purchased in 2026 for $340,000","status":"Reached Out","sheet":"Pasco RT 52","cxLink":"https://www.crexi.com/property-records/11-25-16-0000-00500-0000-HUDSON-FL-34668/c63cbf61d745105c327f139cfa613f9f49619d14"},{"id":17,"address":"HUDSON, FL 34668","city":"HUDSON","lat":28.330304,"lng":-82.672722,"type":"Multifamily","zoning":"MF1","oppZone":"No","acres":3.24,"assessedVal":"$1,420","taxes":"$24","ownerName":"BLACKWELL GARY","ownerMailCity":"NEW PORT RICHEY","ownerMailState":"FL","contactName":"\u2014","phones":[],"emails":[],"notes":"Call Gary Blackwell again - 727.842.2571","status":"Reached Out","sheet":"Pasco RT 52","cxLink":"https://www.crexi.com/property-records/11-25-16-0000-00300-0000-HUDSON-FL-34667-6743/021dcd7932ddeb869feb64942a157827a0d96bb3"},{"id":18,"address":"8994 STATE RD 52, HUDSON, FL 34667-6743","city":"HUDSON","lat":28.330528,"lng":-82.666845,"type":"Retail","zoning":"C2","oppZone":"No","acres":1.39,"assessedVal":"$1,359,919","taxes":"$19,704","ownerName":"WACHOVIA BANK N A","ownerMailCity":"CARLSBAD","ownerMailState":"CA","contactName":"Wachovia Bank","phones":["(305) 329-3787"],"emails":[],"notes":"Wells Fargo branch on corner. Too small.","status":"Dead","sheet":"Pasco RT 52","cxLink":"https://www.crexi.com/property-records/12-25-16-0090-02900-0010-HUDSON-FL-34669/e904b2cd7d150438c7cfe4c4889d81602c00a305"},{"id":19,"address":"9104 STATE RD 52, HUDSON, FL 34669","city":"HUDSON","lat":28.330639,"lng":-82.66418,"type":"Retail","zoning":"C2","oppZone":"No","acres":0.97,"assessedVal":"$442,752","taxes":"$6,040","ownerName":"HOUGHTON-WAGMAN PARTNERSHIP LTD","ownerMailCity":"SAINT PETERSBURG","ownerMailState":"FL","contactName":"Beth Houghton","phones":["(727) 422-6864","(727) 526-6107","(727) 526-7717"],"emails":["bahoughton@sbcglobal.net","bahoughton@hotmail.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":"https://www.crexi.com/property-records/12-25-16-0090-03000-0030-HUDSON-FL-34669-3029/b42860c0f030eb5dd63e60c462c90163cb52e02a"},{"id":20,"address":"9206 STATE RD 52, HUDSON, FL 34669-3029","city":"HUDSON","lat":28.330644,"lng":-82.662576,"type":"Office","zoning":"C2","oppZone":"No","acres":0.38,"assessedVal":"$143,350","taxes":"$2,291","ownerName":"FAMILY CHIROPRACTIC WELLNESS CENTER INC","ownerMailCity":"HUDSON","ownerMailState":"FL","contactName":"Leslie Mondelli","phones":["(615) 788-9624","(615) 356-2511","(615) 354-5438"],"emails":["lmondelli@earthlink.net","lesliemondelli@address.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":21,"address":"9210 STATE RD 52, HUDSON, FL 34669-3029","city":"HUDSON","lat":28.330645,"lng":-82.662324,"type":"General","zoning":"C2","oppZone":"No","acres":0.38,"assessedVal":"$223,215","taxes":"$3,421","ownerName":"KING RODGER B","ownerMailCity":"TAMPA","ownerMailState":"FL","contactName":"Rodger King","phones":[],"emails":["rodgerbk1@aol.com","rodgerbk@aol.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":22,"address":"9310 STATE RD 52, HUDSON, FL 34669-4020","city":"HUDSON","lat":28.330649,"lng":-82.66093,"type":"Office","zoning":"C2","oppZone":"No","acres":0.93,"assessedVal":"$657,359","taxes":"$11,496","ownerName":"LEARN & PLAY PRESCHOOL HOLDINGS INC","ownerMailCity":"NEW PORT RICHEY","ownerMailState":"FL","contactName":"Horozovic Haris","phones":["(727) 856-2777","(727) 856-2983"],"emails":[],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":23,"address":"9507 STATE RD 52, HUDSON, FL 34669-3002","city":"HUDSON","lat":28.331705,"lng":-82.657678,"type":"Industrial","zoning":"C2","oppZone":"No","acres":0.69,"assessedVal":"$387,815","taxes":"$6,677","ownerName":"RJK STATE ROAD 52 LLC","ownerMailCity":"NEW PORT RICHEY","ownerMailState":"FL","contactName":"Mary Kielty","phones":["(727) 919-2971","(727) 856-5902","(727) 856-1256"],"emails":["marykielty@yahoo.com","allstar-transport@live.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":24,"address":"9515 STATE RD 52, HUDSON, FL 34669-3002","city":"HUDSON","lat":28.331705,"lng":-82.657368,"type":"Industrial","zoning":"C2","oppZone":"No","acres":0.69,"assessedVal":"$458,520","taxes":"$7,072","ownerName":"RJK STATE ROAD 52 LLC","ownerMailCity":"NEW PORT RICHEY","ownerMailState":"FL","contactName":"Tanner Kielty","phones":["(727) 243-1715","(727) 863-5486","(727) 376-2766"],"emails":["tannerkielty@rjkieltyplumbing.com","tannerkielty@rjkielty.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":25,"address":"HUDSON, FL 34669","city":"HUDSON","lat":28.331713,"lng":-82.65705,"type":"Land","zoning":"C2","oppZone":"No","acres":0.72,"assessedVal":"$161,840","taxes":"$1,733","ownerName":"LEY RICHARD J","ownerMailCity":"ODESSA","ownerMailState":"FL","contactName":"RICHARD LEY","phones":["(813) 920-2900"],"emails":["RICHARD.LEY@AOL.COM","RICHARD.LEY@YAHOO.COM"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":26,"address":"NEW PORT RICHEY, FL 34654","city":"NEW PORT RICHEY","lat":28.330616,"lng":-82.656736,"type":"Land","zoning":"C2","oppZone":"No","acres":0.53,"assessedVal":"$121,786","taxes":"$2,063","ownerName":"52 & CHICAGO LLC","ownerMailCity":"TAMPA","ownerMailState":"FL","contactName":"Rmc Usf Med East Llc","phones":[],"emails":["brandon@rmcpg.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":27,"address":"9529 STATE RD 52, HUDSON, FL 34669-3002","city":"HUDSON","lat":28.331705,"lng":-82.656721,"type":"Mixed Use","zoning":"C3","oppZone":"No","acres":0.74,"assessedVal":"$298,318","taxes":"$3,932","ownerName":"WALSH NICHOLAS F","ownerMailCity":"HUDSON","ownerMailState":"FL","contactName":"Nicholas Walsh","phones":["(813) 356-8411","(727) 237-4355","(727) 844-5648"],"emails":["nwalsh0602@gmail.com","floridaman274@gmail.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":28,"address":"9538 STATE RD 52, HUDSON, FL 34669-3001","city":"HUDSON","lat":28.330578,"lng":-82.656425,"type":"General","zoning":"C2","oppZone":"No","acres":0.55,"assessedVal":"$404,428","taxes":"$7,231","ownerName":"52 & CHICAGO LLC","ownerMailCity":"TAMPA","ownerMailState":"FL","contactName":"Mitchell Rice","phones":["(813) 766-7002","(813) 712-3061","(813) 963-6345"],"emails":["m.rice@rmpg.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":29,"address":"9539 STATE RD 52, HUDSON, FL 34669-3002","city":"HUDSON","lat":28.33168,"lng":-82.656387,"type":"General","zoning":"C2","oppZone":"No","acres":0.74,"assessedVal":"$206,799","taxes":"$4,069","ownerName":"CLARK MARLENE DELLA","ownerMailCity":"NEW PORT RICHEY","ownerMailState":"FL","contactName":"Marlene Clark","phones":["(907) 987-4382","(603) 254-3877","(603) 764-9626"],"emails":["marlenec.gfp@gmail.com","marlenecgfp@gmail.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":30,"address":"9603 STATE RD 52, HUDSON, FL 34669-3005","city":"HUDSON","lat":28.33164,"lng":-82.656055,"type":"Retail","zoning":"C2","oppZone":"No","acres":0.74,"assessedVal":"$178,309","taxes":"$3,152","ownerName":"FL PRIME INVESTMENT PROPERTIES LLC","ownerMailCity":"HUDSON","ownerMailState":"FL","contactName":"Chandra Ziminski","phones":["(478) 278-1521","(267) 206-3793","(215) 945-2745"],"emails":["chandra_johnson@hotmail.com","ziminskitrucking@aol.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":31,"address":"11934 MINNIEOLA DR, HUDSON, FL 34669","city":"HUDSON","lat":28.330384,"lng":-82.65549,"type":"Land","zoning":"C2","oppZone":"No","acres":0.6,"assessedVal":"$108,870","taxes":"$1,208","ownerName":"DUDLEY O FRANK","ownerMailCity":"HOLIDAY","ownerMailState":"FL","contactName":"Orin Dudley","phones":["(727) 741-0775","(727) 741-0226","(727) 939-9160"],"emails":["orin.dudley@bellsouth.net"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":32,"address":"9628 STATE RD 52, HUDSON, FL 34669-3035","city":"HUDSON","lat":28.330305,"lng":-82.655179,"type":"Retail","zoning":"C2","oppZone":"No","acres":0.6,"assessedVal":"$151,556","taxes":"$2,084","ownerName":"ARP1 LLC","ownerMailCity":"HUDSON","ownerMailState":"FL","contactName":"Patrick Taylor","phones":["(727) 919-2501","(727) 856-5710","(727) 992-6723"],"emails":["amber0721@gmail.com","patslawn@gmail.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":33,"address":"11910 MINNIEOLA DR, HUDSON, FL 34669","city":"HUDSON","lat":28.330225,"lng":-82.654867,"type":"Retail","zoning":"C2","oppZone":"No","acres":0.6,"assessedVal":"$134,268","taxes":"$3,766","ownerName":"ARP1 LLC","ownerMailCity":"HUDSON","ownerMailState":"FL","contactName":"Patrick Taylor","phones":["(727) 919-2501","(727) 856-5710","(727) 992-6723"],"emails":["amber0721@gmail.com","patslawn@gmail.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":34,"address":"9635 STATE RD 52, HUDSON, FL 34669-3005","city":"HUDSON","lat":28.331357,"lng":-82.654795,"type":"Land","zoning":"C2","oppZone":"No","acres":0.69,"assessedVal":"$192,743","taxes":"$2,721","ownerName":"FREIBERG HERMANN E","ownerMailCity":"HUDSON","ownerMailState":"FL","contactName":"HERMANN FREIBERG","phones":["(727) 857-1104","(727) 856-1205","(727) 697-0507"],"emails":["HERMANNF050@GMAIL.COM"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":35,"address":"9643 STATE RD 52, HUDSON, FL 34669-3005","city":"HUDSON","lat":28.33128,"lng":-82.654484,"type":"Land","zoning":"C2","oppZone":"No","acres":0.73,"assessedVal":"$216,605","taxes":"$2,369","ownerName":"DAVIDSON MARLENE TRUST","ownerMailCity":"HUDSON","ownerMailState":"FL","contactName":"Donna Mccrady","phones":["(727) 858-7701","(813) 842-2304","(727) 856-6526"],"emails":["gotmick@gmail.com","mickgot@hotmail.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":36,"address":"9706 STATE RD 52, HUDSON, FL 34669-3003","city":"HUDSON","lat":28.330106,"lng":-82.654398,"type":"Retail","zoning":"C2","oppZone":"No","acres":1.22,"assessedVal":"$466,693","taxes":"$6,122","ownerName":"SR 52 INVESTMENT LLC","ownerMailCity":"HUDSON","ownerMailState":"FL","contactName":"Vijaykumar Patel","phones":["(423) 619-1378","(423) 428-8403","(423) 238-4622"],"emails":["rachna.v.patel@gmail.com","minapatel66@gmail.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":37,"address":"9716 STATE RD 52, HUDSON, FL 34669-3003","city":"HUDSON","lat":28.329981,"lng":-82.653929,"type":"General","zoning":"C2","oppZone":"No","acres":0.65,"assessedVal":"$293,932","taxes":"$4,026","ownerName":"OSWEILER JEFFREY P","ownerMailCity":"HUDSON","ownerMailState":"FL","contactName":"Jeffrey Osweiler","phones":["(727) 808-9830","(727) 858-2312","(727) 868-0111"],"emails":["kellymceachern@msn.com","jeffosweiler@yahoo.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":38,"address":"11860 MINNIEOLA DR, NEW PORT RICHEY, FL 34654-1333","city":"NEW PORT RICHEY","lat":28.329812,"lng":-82.653444,"type":"Residential","zoning":"ER","oppZone":"No","acres":1.6,"assessedVal":"$505,098","taxes":"$7,772","ownerName":"EASTLAKE LLC","ownerMailCity":"TARPON SPRINGS","ownerMailState":"FL","contactName":"Michael Lowe","phones":["(813) 786-2560","(727) 945-8590","(727) 939-2480"],"emails":["georgialowe13@gmail.com","mikelowe0811@gmail.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":39,"address":"HUDSON, FL 34669","city":"HUDSON","lat":28.330989,"lng":-82.65273,"type":"Land","zoning":"C2","oppZone":"No","acres":1.66,"assessedVal":"$328,841","taxes":"$3,248","ownerName":"PAUL BAKKALAPULO REVOCABLE TRUST","ownerMailCity":"PALM HARBOR","ownerMailState":"FL","contactName":"Anna Colin","phones":["(727) 768-1500","(727) 776-5949","(813) 796-5536"],"emails":["loulounetheas@gmail.com","annamcolin@gmail.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":40,"address":"NEW PORT RICHEY, FL 34654","city":"NEW PORT RICHEY","lat":28.329726,"lng":-82.652528,"type":"Land","zoning":"C2","oppZone":"No","acres":3.72,"assessedVal":"$172,761","taxes":"$1,681","ownerName":"LARYNGAKIS FAMILY REV TRUST","ownerMailCity":"HUDSON","ownerMailState":"FL","contactName":"Aris Laryngakis","phones":["(727) 457-3595","(724) 691-4844","(727) 848-3593"],"emails":["yourchef@yahoo.com","greekpimp7@hotmail.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":41,"address":"HUDSON, FL 34669","city":"HUDSON","lat":28.331345,"lng":-82.6507,"type":"Land","zoning":"C2","oppZone":"No","acres":1.51,"assessedVal":"$110,759","taxes":"$1,154","ownerName":"SEA LION REAL ESTATE LLC","ownerMailCity":"BRANDON","ownerMailState":"FL","contactName":"Zachary Wiles","phones":["(813) 661-1660"],"emails":[],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":42,"address":"10027 STATE RD 52, HUDSON, FL 34669-3012","city":"HUDSON","lat":28.3317,"lng":-82.648562,"type":"Mixed Use","zoning":"AR","oppZone":"Yes","acres":0.83,"assessedVal":"$164,878","taxes":"$2,249","ownerName":"MCCARY MICHAEL & MCCARY JAMIE M LIVING TRUST","ownerMailCity":"NEW PORT RICHEY","ownerMailState":"FL","contactName":"Michael Mc Cary","phones":["(727) 243-7676","(813) 863-6594","(813) 856-7653"],"emails":["covered4sure@yahoo.com","f6tourer@yahoo.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":43,"address":"10035 STATE RD 52, HUDSON, FL 34669-3012","city":"HUDSON","lat":28.331681,"lng":-82.648256,"type":"Mixed Use","zoning":"AR","oppZone":"Yes","acres":0.73,"assessedVal":"$168,664","taxes":"$2,907","ownerName":"PASCORAMA RV & AUTO SALES INC","ownerMailCity":"NEW PORT RICHEY","ownerMailState":"FL","contactName":"James Skorczewski","phones":["(727) 808-1309","(727) 967-7338","(727) 842-6896"],"emails":["james.skorczewski@yahoo.com","dskorczewski@gmail.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":44,"address":"10109 STATE RD 52, HUDSON, FL 34669-3065","city":"HUDSON","lat":28.331715,"lng":-82.647637,"type":"Retail","zoning":"C2","oppZone":"Yes","acres":0.61,"assessedVal":"$173,692","taxes":"$2,752","ownerName":"PORTILLO TERESA","ownerMailCity":"NEW PORT RICHEY","ownerMailState":"FL","contactName":"Teresa Portillo","phones":["(727) 534-6433","(727) 375-7381"],"emails":["tportillo@verizon.net"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":45,"address":"HUDSON, FL 34669","city":"HUDSON","lat":28.331742,"lng":-82.64733,"type":"Land","zoning":"C2","oppZone":"Yes","acres":0.57,"assessedVal":"$156,438","taxes":"$2,214","ownerName":"PORTILLO TERESA","ownerMailCity":"NEW PORT RICHEY","ownerMailState":"FL","contactName":"TERESA PORTILLO","phones":["(727) 375-7381","(727) 389-1798"],"emails":[],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":46,"address":"10127 STATE RD 52, HUDSON, FL 34669-3065","city":"HUDSON","lat":28.33177,"lng":-82.647024,"type":"General","zoning":"C2","oppZone":"Yes","acres":0.53,"assessedVal":"$228,191","taxes":"$3,913","ownerName":"ANDERSON ROBERT W","ownerMailCity":"SPRING HILL","ownerMailState":"FL","contactName":"Robert Anderson","phones":["(407) 782-6773","(918) 764-6462","(727) 856-7137"],"emails":["hellface3@yahoo.com","deonanderson5150@yahoo.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":47,"address":"10139 STATE RD 52, HUDSON, FL 34669-3065","city":"HUDSON","lat":28.331794,"lng":-82.646717,"type":"Office","zoning":"C2","oppZone":"Yes","acres":0.5,"assessedVal":"$303,895","taxes":"$5,338","ownerName":"MIG CORPORATION","ownerMailCity":"HUDSON","ownerMailState":"FL","contactName":"Ivonne Martinez","phones":["(727) 389-9544","(727) 389-1841","(727) 808-3102"],"emails":["vonne463@gmail.com","martinezyvonne55@gmail.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":48,"address":"10200 STATE RD 52, HUDSON, FL 34669","city":"HUDSON","lat":28.330352,"lng":-82.646439,"type":"Land","zoning":"C2","oppZone":"No","acres":2.28,"assessedVal":"$344,609","taxes":"$4,352","ownerName":"FREEDOM 41 INC","ownerMailCity":"WOODBINE","ownerMailState":"MD","contactName":"Rosa Valenziano","phones":["(443) 250-0609","(410) 750-3511","(410) 465-7730"],"emails":["johnandrosa@gmail.com","streby3@aol.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":49,"address":"HUDSON, FL 34669","city":"HUDSON","lat":28.330828,"lng":-82.645948,"type":"Land","zoning":"C2","oppZone":"No","acres":0.94,"assessedVal":"$199,296","taxes":"$2,425","ownerName":"10218 LLC","ownerMailCity":"CLEARWATER","ownerMailState":"FL","contactName":"Theresa Cannatella","phones":["(727) 599-6947","(727) 742-9374","(408) 431-5430"],"emails":["cannatella@hotmail.com","tcannatella@hotmail.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":50,"address":"11923 PINE FOREST DR, HUDSON, FL 34669","city":"HUDSON","lat":28.330837,"lng":-82.645094,"type":"Retail","zoning":"C2","oppZone":"No","acres":0.62,"assessedVal":"$273,353","taxes":"$4,206","ownerName":"TRACT 10 FOREST ACS SEC ONE TR","ownerMailCity":"TRINITY","ownerMailState":"FL","contactName":"Rita Bedson Goluba","phones":["(727) 808-5666","(727) 375-8787","(727) 845-3821"],"emails":["ritagoluba@msn.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":51,"address":"11940 PINE FOREST DR, NEW PORT RICHEY, FL 34654-1460","city":"NEW PORT RICHEY","lat":28.330844,"lng":-82.644627,"type":"Retail","zoning":"C2","oppZone":"No","acres":0.63,"assessedVal":"$336,295","taxes":"$5,748","ownerName":"SUN STATE COLLISION INC","ownerMailCity":"HUDSON","ownerMailState":"FL","contactName":"John Harris","phones":["(727) 698-6464","(941) 735-8526","(813) 857-0085"],"emails":["sunstate1234@yahoo.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":52,"address":"HUDSON, FL 34654","city":"HUDSON","lat":28.330655,"lng":-82.642129,"type":"Mixed Use","zoning":"AR","oppZone":"No","acres":4.55,"assessedVal":"$169,925","taxes":"$2,014","ownerName":"M INTERNATIONAL LLC","ownerMailCity":"HUDSON","ownerMailState":"FL","contactName":"Michael Deseta","phones":["(727) 267-0464","(727) 857-5201","(727) 230-3679"],"emails":["mickdeseta@yahoo.com","britneyraee78@gmail.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":53,"address":"12016 S RD, HUDSON, FL 34669-3419","city":"HUDSON","lat":28.331886,"lng":-82.641678,"type":"General","zoning":"C2","oppZone":"Yes","acres":0.89,"assessedVal":"$174,081","taxes":"$2,571","ownerName":"HLOSKA ANTHONY","ownerMailCity":"NEW PORT RICHEY","ownerMailState":"FL","contactName":"Anthony Hloska","phones":["(727) 237-1537","(727) 919-4459","(813) 424-1541"],"emails":["hlvroofing@hotmail.com","antmanhloska@hotmail.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":54,"address":"HUDSON, FL 34669","city":"HUDSON","lat":28.332092,"lng":-82.640886,"type":"Land","zoning":"C2","oppZone":"Yes","acres":2.01,"assessedVal":"$163,346","taxes":"$1,739","ownerName":"GOLDEN OLDIES AUTO SALES INC","ownerMailCity":"HUDSON","ownerMailState":"FL","contactName":"Wendy Fairbanks","phones":["(727) 418-9148","(727) 868-2879","(727) 869-6652"],"emails":["wendo94@hotmail.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":55,"address":"HUDSON, FL 34669","city":"HUDSON","lat":28.333046,"lng":-82.638676,"type":"Land","zoning":"C2","oppZone":"Yes","acres":9.62,"assessedVal":"$452,890","taxes":"$5,338","ownerName":"COOPER DARLENE R REV LIV TRUST","ownerMailCity":"SANFORD","ownerMailState":"FL","contactName":"Darlene Cooper","phones":["(727) 836-7619","(727) 869-6768","(585) 318-5081"],"emails":["drcooper@tampabay.rr.com","darlene@mathproinc.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":56,"address":"10780 STATE RD 52, HUDSON, FL 34669","city":"HUDSON","lat":28.330949,"lng":-82.63594,"type":"Land","zoning":"C2","oppZone":"No","acres":2.29,"assessedVal":"$410,029","taxes":"$6,007","ownerName":"STAT WITHOLDINGS LLC","ownerMailCity":"NEW PORT RICHEY","ownerMailState":"FL","contactName":"\u2014","phones":[],"emails":[],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":57,"address":"10940 STATE RD 52, HUDSON, FL 34669-3046","city":"HUDSON","lat":28.331465,"lng":-82.633175,"type":"Retail","zoning":"C2","oppZone":"No","acres":1.19,"assessedVal":"$341,666","taxes":"$4,525","ownerName":"SHREENA SIYA LLC","ownerMailCity":"LAND O LAKES","ownerMailState":"FL","contactName":"Deepa Patel","phones":["(352) 428-2396","(352) 686-7726","(813) 345-8679"],"emails":["patel700771@yahoo.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":58,"address":"NEW PORT RICHEY, FL 34654","city":"NEW PORT RICHEY","lat":28.338698,"lng":-82.618648,"type":"Land","zoning":"C2","oppZone":"No","acres":1.38,"assessedVal":"$280,126","taxes":"$3,315","ownerName":"MSG LUMSDEN LLC","ownerMailCity":"TAMPA","ownerMailState":"FL","contactName":"Mac Greco","phones":["(813) 223-7849"],"emails":["cgreco80@yahoo.com","jeminvestmentsal@aol.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":59,"address":"HUDSON, FL 34654","city":"HUDSON","lat":28.337921,"lng":-82.615987,"type":"Land","zoning":"C2","oppZone":"No","acres":15.81,"assessedVal":"$446,926","taxes":"$5,607","ownerName":"MSG LUMSDEN LLC","ownerMailCity":"TAMPA","ownerMailState":"FL","contactName":"Mac Greco","phones":["(813) 223-7849"],"emails":["cgreco80@yahoo.com","jeminvestmentsal@aol.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":60,"address":"HUDSON, FL 34669","city":"HUDSON","lat":28.340203,"lng":-82.614816,"type":"Land","zoning":"PUD","oppZone":"No","acres":2.19,"assessedVal":"$341,350","taxes":"$3,967","ownerName":"MUKHI ONE LLC","ownerMailCity":"NEW PORT RICHEY","ownerMailState":"FL","contactName":"Asha Patel","phones":["(912) 399-2169"],"emails":[],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":61,"address":"12352 STATE RD 52, NEW PORT RICHEY, FL 34654","city":"NEW PORT RICHEY","lat":28.336443,"lng":-82.608144,"type":"Land","zoning":"C2","oppZone":"No","acres":9.95,"assessedVal":"$625,262","taxes":"$8,066","ownerName":"SCHICK FAMILY LIMITED PARTNER- SHIP","ownerMailCity":"BROOKHAVEN","ownerMailState":"GA","contactName":"\u2014","phones":[],"emails":[],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":62,"address":"12619 STATE RD 52, HUDSON, FL 34669","city":"HUDSON","lat":28.337847,"lng":-82.605461,"type":"Land","zoning":"PUD","oppZone":"No","acres":10.85,"assessedVal":"$611,372","taxes":"$9,231","ownerName":"12619 STATE ROAD 52 LLC","ownerMailCity":"SPRING HILL","ownerMailState":"FL","contactName":"North Florida Tampa Llc","phones":["(414) 651-3722"],"emails":["ehanneman@ahcpllc.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":63,"address":"NEW PORT RICHEY, FL 34654","city":"NEW PORT RICHEY","lat":28.331408,"lng":-82.596666,"type":"Land","zoning":"C2","oppZone":"No","acres":1.49,"assessedVal":"$186,612","taxes":"$2,117","ownerName":"SV REAL ESTATE LLC","ownerMailCity":"NEW PORT RICHEY","ownerMailState":"FL","contactName":"Prasanna Belde","phones":["(727) 505-5431","(727) 505-4560","(248) 756-5695"],"emails":["pbelde@gmail.com","dpl312003@yahoo.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":64,"address":"NEW PORT RICHEY, FL 34654","city":"NEW PORT RICHEY","lat":28.330808,"lng":-82.593944,"type":"Land","zoning":"C2","oppZone":"No","acres":0.7,"assessedVal":"$143,101","taxes":"$1,679","ownerName":"SWEDBERG REAL ESTATE","ownerMailCity":"FORT MYERS BEACH","ownerMailState":"FL","contactName":"Dale Swedberg","phones":["(813) 917-9272","(813) 996-1384","(239) 233-8336"],"emails":["hockeymonkey8424@aol.com","dalevil65@aol.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":65,"address":"STATE RD 52, NEW PORT RICHEY, FL 34654","city":"NEW PORT RICHEY","lat":28.330383,"lng":-82.593025,"type":"Land","zoning":"C2","oppZone":"No","acres":1.81,"assessedVal":"$251,540","taxes":"$2,831","ownerName":"SWEDBERG REAL ESTATE","ownerMailCity":"FORT MYERS BEACH","ownerMailState":"FL","contactName":"Dale Swedberg","phones":["(813) 917-9272","(813) 996-1384","(239) 233-8336"],"emails":["hockeymonkey8424@aol.com","dalevil65@aol.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":66,"address":"12010 ALRIC POTTBERG RD, SPRING HILL, FL 34610-7612","city":"SPRING HILL","lat":28.334885,"lng":-82.564056,"type":"Land","zoning":"AC","oppZone":"No","acres":207.37,"assessedVal":"$818,886","taxes":"$1,586","ownerName":"CONCOURSE COUNCIL INC","ownerMailCity":"HUDSON","ownerMailState":"FL","contactName":"\u2014","phones":[],"emails":[],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":67,"address":"15300 STATE RD 52, LAND O LAKES, FL 34638","city":"LAND O LAKES","lat":28.329685,"lng":-82.562641,"type":"Mixed Use","zoning":"AR","oppZone":"No","acres":5.32,"assessedVal":"$68,865","taxes":"\u2014","ownerName":"GRACE BAPTIST CHURCH OF NORTH","ownerMailCity":"HUDSON","ownerMailState":"FL","contactName":"Dreama Milnes","phones":["(863) 624-2840","(407) 496-5396","(863) 259-9522"],"emails":["dreamalove36@gmail.com","dreamamilnes36123@gmail.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":68,"address":"15550 STATE RD 52, LAND O LAKES, FL 34638","city":"LAND O LAKES","lat":28.330038,"lng":-82.55812,"type":"Land","zoning":"MPUD","oppZone":"No","acres":3.73,"assessedVal":"$1,647,818","taxes":"$20,979","ownerName":"RMC CR 252 LLC","ownerMailCity":"TAMPA","ownerMailState":"FL","contactName":"\u2014","phones":[],"emails":[],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":69,"address":"11748 SILVER PALM BLVD, LAND O LAKES, FL 34638","city":"LAND O LAKES","lat":28.32844,"lng":-82.555702,"type":"Land","zoning":"MPUD","oppZone":"No","acres":25.05,"assessedVal":"$3,006","taxes":"\u2014","ownerName":"RIZK FLORIDA JV","ownerMailCity":"HOUSTON","ownerMailState":"TX","contactName":"\u2014","phones":[],"emails":[],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":70,"address":"SPRING HILL, FL 34610","city":"SPRING HILL","lat":28.331358,"lng":-82.540445,"type":"Land","zoning":"C2","oppZone":"Yes","acres":7.49,"assessedVal":"$1,462,860","taxes":"$30","ownerName":"DOLCIMASCOLO MARY MARGARET","ownerMailCity":"TAMPA","ownerMailState":"FL","contactName":"Mary Dolcimascolo","phones":["(813) 240-3378","(813) 286-2882","(813) 837-9980"],"emails":["belgophile@aol.com","margeengleman@hotmail.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":71,"address":"11766 N SUNLAKE BLVD, LAND O LAKES, FL 34638","city":"LAND O LAKES","lat":28.326062,"lng":-82.529914,"type":"\u2014","zoning":"MPUD","oppZone":"No","acres":4.17,"assessedVal":"$48,066","taxes":"\u2014","ownerName":"LEN-ANGELINE LLC","ownerMailCity":"TAMPA","ownerMailState":"FL","contactName":"\u2014","phones":[],"emails":[],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":72,"address":"LAND O LAKES, FL 34638","city":"LAND O LAKES","lat":28.324668,"lng":-82.52553,"type":"Land","zoning":"MPUD","oppZone":"No","acres":16.0,"assessedVal":"$574,735","taxes":"\u2014","ownerName":"LEN-ANGELINE LLC","ownerMailCity":"TAMPA","ownerMailState":"FL","contactName":"John Ryan","phones":["(727) 919-3946","(727) 449-0705","(813) 288-8078"],"emails":["ryan@mdgflorida.com","john.ryan@mdgflorida.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":73,"address":"17910 STATE RD 52, LAND O LAKES, FL 34638-6820","city":"LAND O LAKES","lat":28.323735,"lng":-82.51966,"type":"Retail","zoning":"C2","oppZone":"No","acres":1.58,"assessedVal":"$276,910","taxes":"$3,571","ownerName":"BARTOLOZZI RICHARD D","ownerMailCity":"TAMPA","ownerMailState":"FL","contactName":"Richard Bartolazzi","phones":["(954) 444-5775","(813) 900-5425","(813) 654-9676"],"emails":["smylzrdb@gmail.com","smylz.rdb@gmail.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":74,"address":"LAND O LAKES, FL 34638","city":"LAND O LAKES","lat":28.32415,"lng":-82.519264,"type":"Residential","zoning":"R1","oppZone":"No","acres":0.36,"assessedVal":"$12,339","taxes":"$209","ownerName":"MYERS BRIAN","ownerMailCity":"LAND O LAKES","ownerMailState":"FL","contactName":"\u2014","phones":[],"emails":[],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":75,"address":"17930 STATE RD 52, LAND O LAKES, FL 34638-6820","city":"LAND O LAKES","lat":28.323501,"lng":-82.519107,"type":"Residential","zoning":"R1","oppZone":"No","acres":1.45,"assessedVal":"$37,600","taxes":"$851","ownerName":"ASBEL CLIFFORD","ownerMailCity":"LAND O LAKES","ownerMailState":"FL","contactName":"Clifford Asbel","phones":["(850) 524-6073","(941) 586-2059","(850) 524-6072"],"emails":["sugarbear32351@yahoo.com","wiggleytwo@aol.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":76,"address":"17944 STATE RD 52, LAND O LAKES, FL 34638-6820","city":"LAND O LAKES","lat":28.323912,"lng":-82.518641,"type":"Residential","zoning":"R1","oppZone":"No","acres":0.86,"assessedVal":"$73,324","taxes":"\u2014","ownerName":"ASBEL CLIFFORD","ownerMailCity":"LAND O LAKES","ownerMailState":"FL","contactName":"Wendall Asbel","phones":["(813) 312-4453","(813) 355-6485","(813) 355-7210"],"emails":["srrjw2@yahoo.com","mrbig4x4@yahoo.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":77,"address":"11431 SCRUGGS RD, LAND O LAKES, FL 34638-6917","city":"LAND O LAKES","lat":28.323859,"lng":-82.517575,"type":"Residential","zoning":"R1","oppZone":"No","acres":1.28,"assessedVal":"$376,924","taxes":"\u2014","ownerName":"MORRIS SUE G S CHANG","ownerMailCity":"LAND O LAKES","ownerMailState":"FL","contactName":"Sue Morris","phones":["(813) 785-6238","(813) 380-3753","(813) 996-7443"],"emails":["davidhenrymorris@gmail.com","jahunt@earthlink.net"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":78,"address":"18040 STATE RD 52, LAND O LAKES, FL 34638-6822","city":"LAND O LAKES","lat":28.323887,"lng":-82.517107,"type":"Residential","zoning":"R1","oppZone":"No","acres":1.11,"assessedVal":"$50,712","taxes":"\u2014","ownerName":"CHANG MORRIS SUE G S","ownerMailCity":"LAND O' LAKES","ownerMailState":"FL","contactName":"Sue Morris","phones":["(813) 785-6238","(813) 380-3753","(813) 996-7443"],"emails":["davidhenrymorris@gmail.com","jahunt@earthlink.net"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":79,"address":"18045 STATE RD 52, LAND O LAKES, FL 34638-6823","city":"LAND O LAKES","lat":28.325368,"lng":-82.516941,"type":"Residential","zoning":"R1","oppZone":"No","acres":1.2,"assessedVal":"$57,565","taxes":"\u2014","ownerName":"GALLAHER AMITY KAY","ownerMailCity":"HUDSON","ownerMailState":"FL","contactName":"Amity Gallaher","phones":["(813) 210-6817","(203) 515-6628","(630) 263-4171"],"emails":["amitygallaher@gmail.com","stolearenco@netscape.net"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":80,"address":"18110 STATE RD 52, LAND O LAKES, FL 34638-6901","city":"LAND O LAKES","lat":28.323838,"lng":-82.516476,"type":"Residential","zoning":"R1","oppZone":"No","acres":1.04,"assessedVal":"$77,840","taxes":"\u2014","ownerName":"BARRETT THOMAS F","ownerMailCity":"LAND O LAKES","ownerMailState":"FL","contactName":"Thomas Barrett","phones":["(813) 809-6259","(813) 560-3418","(813) 996-6607"],"emails":["thomasfbarrett46@gmail.com","tbar2084@gmail.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":81,"address":"18124 STATE RD 52, LAND O LAKES, FL 34638-6901","city":"LAND O LAKES","lat":28.323783,"lng":-82.516123,"type":"Residential","zoning":"R1","oppZone":"No","acres":0.79,"assessedVal":"$67,883","taxes":"\u2014","ownerName":"BARTON WILLIAM B & TONI","ownerMailCity":"SPRING HILL","ownerMailState":"FL","contactName":"William Barton","phones":["(727) 243-6842","(727) 243-3538","(727) 271-4839"],"emails":["barton215@gmail.com","tashaw1976@gmail.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":82,"address":"LAND O LAKES, FL 34638","city":"LAND O LAKES","lat":28.319477,"lng":-82.505243,"type":"Land","zoning":"MPUD","oppZone":"No","acres":15.6,"assessedVal":"$3,295,411","taxes":"$61","ownerName":"TIBBETTS LAND LLC","ownerMailCity":"SAINT PETERSBURG","ownerMailState":"FL","contactName":"Jeffrey Brandes","phones":["(727) 408-0543","(786) 344-4540","(813) 577-9691"],"emails":["22brandes@gmail.com","jeff.brandes@tibbettsholdings.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":83,"address":"18901 STATE RD 52, LAND O LAKES, FL 34638-6030","city":"LAND O LAKES","lat":28.322402,"lng":-82.503919,"type":"Land","zoning":"AC","oppZone":"No","acres":3.44,"assessedVal":"$1,019","taxes":"$17","ownerName":"BUSINESS PROPERTIES LTD","ownerMailCity":"GREENVILLE","ownerMailState":"SC","contactName":"John Wilfred","phones":["(224) 280-3494"],"emails":[],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":84,"address":"19211 STATE RD 52, LAND O LAKES, FL 34637-7003","city":"LAND O LAKES","lat":28.325308,"lng":-82.499362,"type":"Land","zoning":"MPUD","oppZone":"No","acres":35.12,"assessedVal":"$2,948,768","taxes":"$3,316","ownerName":"CAMPBELL SOUTH COMMERCIAL LLC","ownerMailCity":"TAMPA","ownerMailState":"FL","contactName":"W Arch Street Llc","phones":["(727) 686-3932"],"emails":["lkatzman@ripaconstruction.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":85,"address":"19245 STATE RD 52, LAND O LAKES, FL 34637-7003","city":"LAND O LAKES","lat":28.324283,"lng":-82.497459,"type":"Retail","zoning":"C2","oppZone":"No","acres":3.39,"assessedVal":"$192,607","taxes":"$3,605","ownerName":"BELLA SUNSHINE PROPERTIES LLC","ownerMailCity":"LAND O LAKES","ownerMailState":"FL","contactName":"Earl Kreider","phones":["(813) 833-2408","(813) 996-2106","(352) 637-0581"],"emails":["patsleads@yahoo.com","earlkreider@aol.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":86,"address":"LAND O LAKES, FL 34610","city":"LAND O LAKES","lat":28.32573,"lng":-82.490966,"type":"Mixed Use","zoning":"AR","oppZone":"No","acres":10.61,"assessedVal":"$98,825","taxes":"$44","ownerName":"J & K ELITE COMMERCIAL DEVELOPMENT LLC","ownerMailCity":"TAMPA","ownerMailState":"FL","contactName":"Robert Tiisler","phones":["(813) 777-2541","(813) 593-1629","(727) 346-0075"],"emails":["rob@tiisler.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":87,"address":"19815 STATE RD 52, LAND O LAKES, FL 34637-7012","city":"LAND O LAKES","lat":28.326178,"lng":-82.486921,"type":"Mixed Use","zoning":"AR","oppZone":"No","acres":8.37,"assessedVal":"$229,208","taxes":"$2,644","ownerName":"WATSON EILEEN MCCABE","ownerMailCity":"SAN ANTONIO","ownerMailState":"FL","contactName":"Eileen Watson","phones":["(727) 808-9691","(941) 623-3814","(813) 996-2912"],"emails":[],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":88,"address":"21123 STATE RD 52, LAND O LAKES, FL 34637-7005","city":"LAND O LAKES","lat":28.327613,"lng":-82.460022,"type":"Land","zoning":"MPUD","oppZone":"No","acres":369.4,"assessedVal":"$5,893,820","taxes":"$1,311","ownerName":"4G RANCH LLC","ownerMailCity":"KNOXVILLE","ownerMailState":"TN","contactName":"Avis Phillips","phones":["(865) 414-6002","(865) 776-1613","(865) 671-2601"],"emails":["avisphillips@yahoo.com","aphillips@avisco.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":89,"address":"11133 EHREN CUTOFF, LAND O LAKES, FL 34639","city":"LAND O LAKES","lat":28.321758,"lng":-82.419951,"type":"Industrial","zoning":"I2","oppZone":"No","acres":6.61,"assessedVal":"$171,381","taxes":"$2,117","ownerName":"KEYS CLYDE J","ownerMailCity":"ODESSA","ownerMailState":"FL","contactName":"Clyde Keys","phones":["(727) 638-3078","(727) 934-7996","(727) 372-1355"],"emails":["debbiekeys@mac.com","keyscrete@verizon.net"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":90,"address":"LAND O LAKES, FL 34637","city":"LAND O LAKES","lat":28.321917,"lng":-82.418361,"type":"Industrial","zoning":"I2","oppZone":"No","acres":13.18,"assessedVal":"$404,667","taxes":"$4,043","ownerName":"KEYS CLYDE J","ownerMailCity":"ODESSA","ownerMailState":"FL","contactName":"Clyde Keys","phones":["(727) 638-3078","(727) 934-7996","(727) 372-1355"],"emails":["debbiekeys@mac.com","keyscrete@verizon.net"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":91,"address":"LAND O LAKES, FL 34639","city":"LAND O LAKES","lat":28.319805,"lng":-82.416205,"type":"Land","zoning":"AC","oppZone":"No","acres":56.35,"assessedVal":"$515,051","taxes":"$194","ownerName":"RODRIGUEZ A H FAMILY TRUST B","ownerMailCity":"CLEARWATER BEACH","ownerMailState":"FL","contactName":"Donna Rodriguez","phones":["(352) 989-0075","(352) 636-4783","(813) 785-0304"],"emails":["zenjen2018@yahoo.com","jen_akira@japanimation.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":92,"address":"11451 BELLAMY BROTHERS BLVD, DADE CITY, FL 33525-7927","city":"DADE CITY","lat":28.324574,"lng":-82.358223,"type":"Land","zoning":"C2","oppZone":"No","acres":0.42,"assessedVal":"$114,300","taxes":"\u2014","ownerName":"FL DEPT OF TRANSPORTATION","ownerMailCity":"TAMPA","ownerMailState":"FL","contactName":"Dept Of Transportation","phones":[],"emails":[],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":93,"address":"SAN ANTONIO, FL 33576","city":"SAN ANTONIO","lat":28.323212,"lng":-82.346458,"type":"Mixed Use","zoning":"AR","oppZone":"No","acres":17.31,"assessedVal":"$287,432","taxes":"$4,870","ownerName":"ASL SR52 REAL ESTATE LLC","ownerMailCity":"TAMPA","ownerMailState":"FL","contactName":"James Eyer","phones":["(813) 205-8536","(813) 882-8007","(217) 793-3124"],"emails":["rjysr@juno.com","james.eyer@1hcs.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":94,"address":"28908 STATE RD 52, SAN ANTONIO, FL 33576","city":"SAN ANTONIO","lat":28.32434,"lng":-82.338211,"type":"Land","zoning":"C2","oppZone":"No","acres":0.05,"assessedVal":"$1,159","taxes":"$13","ownerName":"JOVITA HOLDINGS LLC","ownerMailCity":"DADE CITY","ownerMailState":"FL","contactName":"Willie Mckendree","phones":["(850) 509-3161","(904) 588-2533","(352) 588-2533"],"emails":["mckendree33@gmail.com","willie.mckendree@hotmail.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":95,"address":"28908 STATE RD 52, SAN ANTONIO, FL 33576","city":"SAN ANTONIO","lat":28.324189,"lng":-82.33786,"type":"Land","zoning":"C2","oppZone":"No","acres":0.93,"assessedVal":"$119,650","taxes":"$1,800","ownerName":"GUILFORD CHARITABLE REMAINDER","ownerMailCity":"DADE CITY","ownerMailState":"FL","contactName":"Willie Mckendree","phones":["(850) 509-3161","(904) 588-2533","(352) 588-2533"],"emails":["mckendree33@gmail.com","willie.mckendree@hotmail.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":96,"address":"SAN ANTONIO, FL 33576","city":"SAN ANTONIO","lat":28.32351,"lng":-82.337785,"type":"Land","zoning":"AC","oppZone":"No","acres":3.17,"assessedVal":"$121,305","taxes":"$1,390","ownerName":"MATHIS EDWARD NEIL","ownerMailCity":"SAN ANTONIO","ownerMailState":"FL","contactName":"\u2014","phones":[],"emails":[],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":97,"address":"11551 TRADEWAY BLVD, SAN ANTONIO, FL 33576","city":"SAN ANTONIO","lat":28.324379,"lng":-82.322188,"type":"Land","zoning":"C2","oppZone":"No","acres":11.79,"assessedVal":"$1,699,888","taxes":"$28,801","ownerName":"DOUBLE BRANCH DEV INC","ownerMailCity":"EVANSVILLE","ownerMailState":"IN","contactName":"\u2014","phones":[],"emails":[],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":98,"address":"11542 CORPORATE LAKE BLVD, SAN ANTONIO, FL 33576","city":"SAN ANTONIO","lat":28.325638,"lng":-82.311158,"type":"Land","zoning":"C2","oppZone":"No","acres":3.78,"assessedVal":"$2,036,857","taxes":"$7,966","ownerName":"FIRST PASCO SERVICE CORPORATION","ownerMailCity":"DADE CITY","ownerMailState":"FL","contactName":"Karla Roberts","phones":["(352) 424-2071","(352) 567-2383","(352) 567-8906"],"emails":["hmbanks0792@yahoo.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":99,"address":"33042 MCCABE RD, SAN ANTONIO, FL 33576-8238","city":"SAN ANTONIO","lat":28.323903,"lng":-82.268671,"type":"Residential","zoning":"AC","oppZone":"No","acres":4.96,"assessedVal":"$406,204","taxes":"\u2014","ownerName":"CARTWRIGHT KEITH & BONITA J","ownerMailCity":"SAN ANTONIO","ownerMailState":"FL","contactName":"Keith Cartwright","phones":["(718) 666-9728","(352) 588-0600","(607) 478-8335"],"emails":["littlejoecart@adelphia.net","littlejoecart@roadrunner.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":100,"address":"33144 MCCABE RD, SAN ANTONIO, FL 33576-8207","city":"SAN ANTONIO","lat":28.324037,"lng":-82.267029,"type":"Residential","zoning":"AC","oppZone":"No","acres":5.06,"assessedVal":"$199,977","taxes":"\u2014","ownerName":"FARMSTEAD MANAGEMENT LLC","ownerMailCity":"SAN ANTONIO","ownerMailState":"FL","contactName":"Betty Mccabe","phones":["(352) 206-1729","(352) 588-3271","(352) 588-2993"],"emails":["bmccabe42@yahoo.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":101,"address":"33616 MCCABE RD, SAN ANTONIO, FL 33576-7024","city":"SAN ANTONIO","lat":28.324424,"lng":-82.25963,"type":"Residential","zoning":"AC","oppZone":"No","acres":0.93,"assessedVal":"$167,568","taxes":"\u2014","ownerName":"REED SANDRA K","ownerMailCity":"SAN ANTONIO","ownerMailState":"FL","contactName":"Sandra Reed","phones":["(813) 713-1196","(352) 588-4693","(352) 567-3990"],"emails":["skr633@aol.com","skr417@yahoo.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":102,"address":"35010 PROSPECT RD, DADE CITY, FL 33525-8210","city":"DADE CITY","lat":28.333099,"lng":-82.236563,"type":"Mixed Use","zoning":"AR","oppZone":"No","acres":4.8,"assessedVal":"$258,549","taxes":"$5,038","ownerName":"REID DANIEL A","ownerMailCity":"DADE CITY","ownerMailState":"FL","contactName":"Daniel Reid","phones":["(813) 293-4177","(813) 418-2002"],"emails":["dr39284@gmail.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":103,"address":"35045 CLINTON AVE, DADE CITY, FL 33525-8202","city":"DADE CITY","lat":28.333232,"lng":-82.235615,"type":"Residential","zoning":"AR","oppZone":"No","acres":3.81,"assessedVal":"$137,372","taxes":"\u2014","ownerName":"MULTIOPLY LLC","ownerMailCity":"WESLEY CHAPEL","ownerMailState":"FL","contactName":"Otto Strickland","phones":["(813) 335-4561","(813) 973-7251","(813) 239-1675"],"emails":["bigstrick@verizon.net"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":104,"address":"35105 CLINTON AVE, DADE CITY, FL 33525-8201","city":"DADE CITY","lat":28.332573,"lng":-82.235303,"type":"Residential","zoning":"AR","oppZone":"No","acres":1.0,"assessedVal":"$258,824","taxes":"\u2014","ownerName":"STEVENS JOSEPH L & ANGELA","ownerMailCity":"DADE CITY","ownerMailState":"FL","contactName":"Joseph Stevens","phones":["(813) 727-4378","(610) 751-5493","(610) 392-8042"],"emails":["jastevens587@yahoo.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":105,"address":"35129 CLINTON AVE, DADE CITY, FL 33525-8201","city":"DADE CITY","lat":28.333108,"lng":-82.234541,"type":"Residential","zoning":"AC","oppZone":"No","acres":4.73,"assessedVal":"$314,851","taxes":"\u2014","ownerName":"REID DANIEL A JR & RUTH M","ownerMailCity":"DADE CITY","ownerMailState":"FL","contactName":"Daniel Reid","phones":["(813) 293-4177","(813) 418-2002"],"emails":["dr39284@gmail.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":106,"address":"36450 CLINTON AVE, DADE CITY, FL 33525-8428","city":"DADE CITY","lat":28.327421,"lng":-82.212898,"type":"Residential","zoning":"ER","oppZone":"No","acres":4.43,"assessedVal":"$1,040,623","taxes":"\u2014","ownerName":"MURPHY CHRISTOPHER G","ownerMailCity":"DADE CITY","ownerMailState":"FL","contactName":"Christopher Murphy","phones":["(352) 424-1767","(352) 523-1270","(352) 812-5956"],"emails":["thenurse3@hotmail.com","cgmurphymd@gmail.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":107,"address":"1971 RAPID RIVER BLVD, ZEPHYRHILLS, FL 33540","city":"ZEPHYRHILLS","lat":28.185171,"lng":-82.205827,"type":"Land","zoning":"PUD","oppZone":"No","acres":1.01,"assessedVal":"$198,003","taxes":"$2,088","ownerName":"PASCO COUNTY LAND TRUST","ownerMailCity":"TAMPA","ownerMailState":"FL","contactName":"\u2014","phones":[],"emails":[],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":108,"address":"DADE CITY, FL 33525","city":"DADE CITY","lat":28.32772,"lng":-82.204716,"type":"Land","zoning":"AC","oppZone":"No","acres":2.59,"assessedVal":"$254,401","taxes":"$3,452","ownerName":"KMD HOSPITALITY INVESTMENT LLC","ownerMailCity":"OLDSMAR","ownerMailState":"FL","contactName":"Devangkumar Maheshkumar Joshi","phones":["(727) 365-2186","(727) 301-0308","(727) 871-7970"],"emails":["devangmj@yahoo.com","devangkumarjoshi@yahoo.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":109,"address":"11745 FT KING RD, DADE CITY, FL 33525-5919","city":"DADE CITY","lat":28.328919,"lng":-82.204713,"type":"Residential","zoning":"R1MH","oppZone":"No","acres":1.56,"assessedVal":"$40,029","taxes":"$785","ownerName":"KMD HOSPITALITY INVESTMENT LLC","ownerMailCity":"OLDSMAR","ownerMailState":"FL","contactName":"Devangkumar Maheshkumar Joshi","phones":["(727) 365-2186","(727) 301-0308","(727) 871-7970"],"emails":["devangmj@yahoo.com","devangkumarjoshi@yahoo.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":110,"address":"DADE CITY, FL 33525","city":"DADE CITY","lat":28.327327,"lng":-82.188831,"type":"Land","zoning":"CG","oppZone":"No","acres":7.17,"assessedVal":"$801,200","taxes":"$884","ownerName":"TOM ED OAKLEY HOLDINGS LLC","ownerMailCity":"DADE CITY","ownerMailState":"FL","contactName":"Ann Maggard","phones":["(813) 567-6224","(352) 567-6224","(352) 567-0185"],"emails":["daleannmag@aol.com","brihyter00@gmail.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""},{"id":111,"address":"11704 US HWY 301, DADE CITY, FL 33525-1871","city":"DADE CITY","lat":28.327732,"lng":-82.186957,"type":"Retail","zoning":"CG","oppZone":"No","acres":1.83,"assessedVal":"$1,482,269","taxes":"$36,010","ownerName":"MY THREE SUNS LLC","ownerMailCity":"POMPANO BEACH","ownerMailState":"FL","contactName":"Sharon Gustafson","phones":["(954) 242-6768","(954) 309-0444","(954) 649-0404"],"emails":["sharonjohnson002@yahoo.com","sgustafson@bmdfl.com"],"notes":"","status":"Pending","sheet":"Pasco RT 52","cxLink":""}];
+
+// Live state — loaded from Sheet on init, updated on every change
+let liveData = {}; // {id: {status, notes, lastContacted}}
+let map, gMarkers = [], selectedId = null, activeFilter = 'all';
+let gapi_ready = false, token = null;
+let saveTimer = null, nextId = 200;
+
+// Initialize live data defaults
+PARCELS.forEach(p => {
+  liveData[p.id] = { status: p.status, notes: p.notes || '', lastContacted: '' };
+});
+
+// ── GOOGLE AUTH ───────────────────────────────────────────────────
+function signIn() {
+  const client = google.accounts.oauth2.initTokenClient({
+    client_id: '463850812215-up3nsslt7cg39gne2eqjospkjm5tei2f.apps.googleusercontent.com',
+    scope: 'https://www.googleapis.com/auth/spreadsheets',
+    callback: (resp) => {
+      if (resp.error) { toast('⚠ Sign-in failed: ' + resp.error); return; }
+      token = resp.access_token;
+      document.getElementById('auth-overlay').style.display = 'none';
+      initApp();
+    }
+  });
+  client.requestAccessToken();
+}
+
+// ── APP INIT ──────────────────────────────────────────────────────
+function initApp() {
+  loadGoogleMaps();
+  loadSheetData();
+}
+
+function loadGoogleMaps() {
+  const s = document.createElement('script');
+  s.src = `https://maps.googleapis.com/maps/api/js?key=${GMAPS_KEY}&callback=initGoogleMapCb&v=weekly`;
+  s.async = true;
+  document.body.appendChild(s);
+}
+
+window.initGoogleMapCb = function() {
+  const mapDiv = document.getElementById('map');
+  map = new google.maps.Map(mapDiv, {
+    center: {lat: 28.33, lng: -82.65}, zoom: 11,
+    mapTypeId: 'hybrid',
+    disableDefaultUI: true,
+    zoomControl: true,
+    zoomControlOptions: {position: google.maps.ControlPosition.RIGHT_BOTTOM},
+  });
+  PARCELS.forEach(p => addGMarker(p));
+  renderSumbar(); updateCount();
+  setSyncState('synced');
+};
+
+// ── SHEET INTEGRATION ─────────────────────────────────────────────
+async function loadSheetData() {
+  if (!token) return;
+  setSyncState('saving');
+  try {
+    const range = `${SHEET_TAB}!AF2:AI${PARCELS.length + 1}`;
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(range)}`;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    const data = await res.json();
+    if (data.values) {
+      data.values.forEach((row, i) => {
+        const id = PARCELS[i]?.id;
+        if (!id) return;
+        if (row[0]) liveData[id].status = row[0];
+        if (row[1]) liveData[id].notes = row[1];
+        if (row[2]) liveData[id].lastContacted = row[2];
+      });
+    }
+    refreshAllMarkers();
+    renderSumbar();
+    setSyncState('synced');
+  } catch(e) {
+    console.log('Sheet load error:', e);
+    setSyncState('error');
+  }
+}
+
+async function writeToSheet(parcelId, field, value) {
+  if (!token) return;
+  setSyncState('saving');
+  const rowIndex = PARCELS.findIndex(p => p.id === parcelId);
+  if (rowIndex < 0) return;
+  const sheetRow = rowIndex + 2; // 1-indexed + header row
+
+  let col;
+  if (field === 'status') col = 'AF';
+  else if (field === 'notes') col = 'AG';
+  else if (field === 'lastContacted') col = 'AH';
+  else return;
+
+  // Also write last-updated timestamp
+  const range = `${SHEET_TAB}!${col}${sheetRow}:AI${sheetRow}`;
+  const now = new Date().toLocaleString('en-US', {timeZone:'America/New_York'});
+
+  try {
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(`${SHEET_TAB}!${col}${sheetRow}`)}?valueInputOption=USER_ENTERED`;
+    await fetch(url, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ values: [[value]] })
+    });
+    // Write timestamp to AI column
+    const tsUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(`${SHEET_TAB}!AI${sheetRow}`)}?valueInputOption=USER_ENTERED`;
+    await fetch(tsUrl, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ values: [[now]] })
+    });
+    setSyncState('synced');
+  } catch(e) {
+    setSyncState('error');
+    toast('⚠ Save failed — check connection');
+  }
+}
+
+function setSyncState(s) {
+  const dot = document.getElementById('sync-dot');
+  const txt = document.getElementById('sync-text');
+  dot.className = s === 'saving' ? 'saving' : s === 'error' ? 'error' : '';
+  txt.textContent = s === 'saving' ? 'Saving…' : s === 'error' ? 'Save failed' : 'Synced';
+}
+
+// ── MARKERS ───────────────────────────────────────────────────────
+function pinSvg(color, sel) {
+  const h = sel?40:30, w = sel?27:20;
+  return `<svg width="${w}" height="${h}" viewBox="0 0 20 30" xmlns="http://www.w3.org/2000/svg">
+    <defs><filter id="sh"><feDropShadow dx="0" dy="1.5" stdDeviation="2" flood-opacity="0.6"/></filter></defs>
+    <path d="M10 1C5.58 1 2 4.58 2 9c0 6.75 8 20 8 20S18 15.75 18 9C18 4.58 14.42 1 10 1z"
+      fill="${color}" stroke="rgba(255,255,255,0.3)" stroke-width="1" filter="url(#sh)"/>
+    <circle cx="10" cy="9" r="${sel?4.5:3}" fill="white" opacity="0.9"/></svg>`;
+}
+
+function addGMarker(p) {
+  if (!map) return;
+  const div = document.createElement('div');
+  const c = SC[liveData[p.id]?.status] || '#9ca3af';
+  div.innerHTML = pinSvg(c, false);
+  div.style.cssText = 'cursor:pointer;transition:transform .15s;position:absolute';
+  div.addEventListener('mouseenter', () => div.style.transform = 'scale(1.3)');
+  div.addEventListener('mouseleave', () => { if (selectedId !== p.id) div.style.transform = ''; });
+  div.addEventListener('click', () => openPanel(p.id));
+
+  const ov = new google.maps.OverlayView();
+  ov.onAdd = function() { this.getPanes().overlayMouseTarget.appendChild(div); };
+  ov.draw = function() {
+    const proj = this.getProjection();
+    const px = proj.fromLatLngToDivPixel(new google.maps.LatLng(p.lat, p.lng));
+    if (px) { div.style.left = (px.x - 10) + 'px'; div.style.top = (px.y - 30) + 'px'; }
+  };
+  ov.onRemove = function() { div.parentNode?.removeChild(div); };
+  ov.setMap(map);
+  ov._pid = p.id; ov._div = div;
+  gMarkers.push(ov);
+}
+
+function refreshAllMarkers() {
+  if (!map) return;
+  gMarkers.forEach(ov => {
+    const id = ov._pid;
+    const s = liveData[id]?.status || 'Pending';
+    const c = SC[s] || '#9ca3af';
+    const sel = id === selectedId;
+    ov._div.innerHTML = pinSvg(c, sel);
+    ov._div.style.zIndex = sel ? '999' : '';
+    const show = activeFilter === 'all' || s === activeFilter;
+    ov._div.style.display = show ? '' : 'none';
+  });
+}
+
+// ── PANEL ─────────────────────────────────────────────────────────
+function openPanel(id) {
+  const p = PARCELS.find(x => x.id === id);
+  if (!p) return;
+  selectedId = id;
+  refreshAllMarkers();
+
+  const s = liveData[id]?.status || p.status;
+  const c = SC[s];
+  const badge = document.getElementById('pbadge');
+  badge.style.cssText = `background:${c}22;border:1px solid ${c}44`;
+  document.getElementById('pbadge-dot').style.background = c;
+  document.getElementById('pbadge-text').textContent = s;
+  document.getElementById('paddr').textContent = p.address;
+  document.getElementById('powner').textContent = p.ownerName;
+  document.getElementById('pdetail').innerHTML = `${p.type} · ${p.zoning}` +
+    (p.oppZone === 'Yes' ? ' <span class="oz-badge">OZ</span>' : '') + ` · ${p.acres} ac`;
+
+  document.querySelectorAll('.sp').forEach(el => {
+    el.className = 'sp' + (el.dataset.sv === s ? ` sel-${s}` : '');
+  });
+
+  document.getElementById('lc-input').value = liveData[id]?.lastContacted || '';
+  document.getElementById('notes-field').value = liveData[id]?.notes || '';
+
+  document.getElementById('srow').innerHTML = `
+    <div class="sm"><div class="smv">${p.acres}</div><div class="sml">Acres</div></div>
+    <div class="sm"><div class="smv">${p.assessedVal}</div><div class="sml">Assessed</div></div>
+    <div class="sm"><div class="smv">${p.taxes}</div><div class="sml">Tax/yr</div></div>`;
+
+  const phones = p.phones.map(ph => `<span class="tag">${ph}</span>`).join('');
+  const emails = p.emails.map(e => `<span class="tag">${e}</span>`).join('');
+  const cx = p.cxLink ? `<a class="cx-link" href="${p.cxLink}" target="_blank">View on Crexi ↗</a>` : '';
+
+  document.getElementById('pb').innerHTML =
+    sec('Property', true,
+      row('City', p.city) + row('Zoning', p.zoning) + row('Type', p.type) +
+      row('Opp Zone', p.oppZone === 'Yes' ? '<span style="color:#a855f7">Yes ✓</span>' : 'No')) +
+    sec('Financials', false, row('Assessed', p.assessedVal) + row('Taxes/yr', p.taxes)) +
+    sec('Owner & Contact', false,
+      row('Owner', p.ownerName) +
+      row('Mailing', `${p.ownerMailCity}, ${p.ownerMailState}`) +
+      row('Contact', p.contactName) +
+      `<div class="dr"><span class="dl">Phone</span><span class="dv">${phones || '—'}</span></div>` +
+      `<div class="dr"><span class="dl">Email</span><span class="dv">${emails || '—'}</span></div>${cx}`);
+
+  document.getElementById('pb').querySelectorAll('.stog').forEach(b => {
+    b.onclick = () => { b.nextElementSibling.classList.toggle('open'); b.classList.toggle('exp'); };
+  });
+  document.getElementById('panel').classList.add('open');
+}
+
+function sec(title, open, content) {
+  return `<div class="sec"><button class="stog${open?' exp':''}">
+    ${title}<svg class="chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4.5l3 3 3-3"/></svg>
+  </button><div class="sc${open?' open':''}">${content}</div></div>`;
+}
+function row(l, v) { return `<div class="dr"><span class="dl">${l}</span><span class="dv">${v}</span></div>`; }
+
+window.setStatus = function(val) {
+  if (!selectedId) return;
+  liveData[selectedId].status = val;
+  document.querySelectorAll('.sp').forEach(el => el.className = 'sp' + (el.dataset.sv === val ? ` sel-${val}` : ''));
+  const c = SC[val];
+  document.getElementById('pbadge').style.cssText = `background:${c}22;border:1px solid ${c}44`;
+  document.getElementById('pbadge-dot').style.background = c;
+  document.getElementById('pbadge-text').textContent = val;
+  refreshAllMarkers(); renderSumbar(); updateCount();
+  writeToSheet(selectedId, 'status', val);
+};
+
+window.saveField = function(field, value) {
+  if (!selectedId) return;
+  liveData[selectedId][field] = value;
+  if (field === 'notes') {
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => writeToSheet(selectedId, field, value), 1500);
+  } else {
+    writeToSheet(selectedId, field, value);
+  }
+};
+
+document.getElementById('notes-field').addEventListener('input', () => {
+  if (!selectedId) return;
+  window.saveField('notes', document.getElementById('notes-field').value);
+});
+
+window.closePanel = function() {
+  document.getElementById('panel').classList.remove('open');
+  selectedId = null; refreshAllMarkers();
+};
+
+// ── FILTERS ───────────────────────────────────────────────────────
+document.querySelectorAll('.fc').forEach(chip => {
+  chip.addEventListener('click', () => {
+    document.querySelectorAll('.fc').forEach(x => x.classList.remove('active'));
+    chip.classList.add('active');
+    activeFilter = chip.dataset.s;
+    refreshAllMarkers(); updateCount();
+    if (selectedId && activeFilter !== 'all' && liveData[selectedId]?.status !== activeFilter) closePanel();
+  });
+});
+
+function updateCount() {
+  const n = activeFilter === 'all' ? PARCELS.length :
+    PARCELS.filter(p => (liveData[p.id]?.status || p.status) === activeFilter).length;
+  document.getElementById('pcount').textContent = `${n} parcel${n !== 1 ? 's' : ''}`;
+}
+
+function renderSumbar() {
+  const counts = {};
+  PARCELS.forEach(p => { const s = liveData[p.id]?.status || p.status; counts[s] = (counts[s]||0)+1; });
+  document.getElementById('sumbar').innerHTML = Object.entries(counts)
+    .map(([s,c]) => `<div class="sc2"><div class="dot" style="background:${SC[s]}"></div><strong>${c}</strong> ${s}</div>`)
+    .join('');
+}
+
+window.setMapType = function(type) {
+  document.getElementById('btn-hybrid').classList.toggle('active', type === 'hybrid');
+  document.getElementById('btn-road').classList.toggle('active', type === 'road');
+  if (map) map.setMapTypeId(type === 'hybrid' ? 'hybrid' : 'roadmap');
+};
+
+// ── ADD PARCEL ────────────────────────────────────────────────────
+let pendingLat = null, pendingLng = null;
+
+window.openAddModal = function() {
+  document.getElementById('modal-overlay').classList.add('open');
+  ['f-address','f-lat','f-lng','f-zoning','f-acres','f-aval','f-taxes',
+   'f-owner','f-contact','f-phone','f-email','f-cx','f-notes'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  document.getElementById('f-type').value = 'Land';
+  document.getElementById('f-oz').value = 'No';
+  document.getElementById('f-status').value = 'Pending';
+  document.getElementById('geo-res').textContent = 'Enter address then click Locate';
+  document.getElementById('geo-res').className = 'geo-res';
+  pendingLat = null; pendingLng = null;
+  setTimeout(() => document.getElementById('f-address').focus(), 100);
+};
+
+window.closeModal = function() { document.getElementById('modal-overlay').classList.remove('open'); };
+document.getElementById('modal-overlay').addEventListener('click', e => { if (e.target.id === 'modal-overlay') closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+window.geocodeAddress = async function() {
+  const addr = document.getElementById('f-address').value.trim();
+  if (!addr) return;
+  const res = document.getElementById('geo-res');
+  res.textContent = 'Locating…'; res.className = 'geo-res';
+  try {
+    const r = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(addr)}&key=${GMAPS_KEY}`);
+    const d = await r.json();
+    if (d.results?.length) {
+      const {lat, lng} = d.results[0].geometry.location;
+      pendingLat = parseFloat(lat.toFixed(6)); pendingLng = parseFloat(lng.toFixed(6));
+      document.getElementById('f-lat').value = pendingLat;
+      document.getElementById('f-lng').value = pendingLng;
+      res.textContent = `✓ ${d.results[0].formatted_address}`; res.className = 'geo-res ok';
+    } else { res.textContent = 'Not found — enter lat/lng manually'; res.className = 'geo-res err'; }
+  } catch { res.textContent = 'Geocoding error — enter lat/lng manually'; res.className = 'geo-res err'; }
+};
+
+window.confirmAdd = async function() {
+  const lat = pendingLat || parseFloat(document.getElementById('f-lat').value);
+  const lng = pendingLng || parseFloat(document.getElementById('f-lng').value);
+  if (!lat || !lng) {
+    document.getElementById('geo-res').textContent = '⚠ Enter coordinates or use Locate';
+    document.getElementById('geo-res').className = 'geo-res err'; return;
+  }
+  const addr = document.getElementById('f-address').value.trim() || 'Unknown Address';
+  const status = document.getElementById('f-status').value;
+  const notes = document.getElementById('f-notes').value;
+  const np = {
+    id: nextId++, address: addr, city: addr.split(',')[1]?.trim() || '', lat, lng,
+    type: document.getElementById('f-type').value,
+    zoning: document.getElementById('f-zoning').value || '—',
+    oppZone: document.getElementById('f-oz').value,
+    acres: parseFloat(document.getElementById('f-acres').value) || 0,
+    assessedVal: document.getElementById('f-aval').value || '—',
+    taxes: document.getElementById('f-taxes').value || '—',
+    ownerName: document.getElementById('f-owner').value || '—',
+    ownerMailCity: '', ownerMailState: '',
+    contactName: document.getElementById('f-contact').value || '—',
+    phones: document.getElementById('f-phone').value ? [document.getElementById('f-phone').value] : [],
+    emails: document.getElementById('f-email').value ? [document.getElementById('f-email').value] : [],
+    notes, status, cxLink: document.getElementById('f-cx').value || ''
+  };
+  PARCELS.push(np);
+  liveData[np.id] = {status, notes, lastContacted: ''};
+  addGMarker(np);
+  refreshAllMarkers(); renderSumbar(); updateCount();
+
+  // Append to Sheet
+  if (token) {
+    try {
+      const appendUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(SHEET_TAB + '!A:AI')}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
+      const rowData = [np.cxLink, np.type, np.address.split(',')[0], np.city, '', notes, '', '', np.zoning, np.oppZone, np.acres, lat, lng, np.assessedVal, np.taxes, np.ownerName, '', '', '', '', np.contactName, ...(np.phones.concat(['','',''])).slice(0,5), ...(np.emails.concat(['','','',''])).slice(0,5), status, notes, '', new Date().toLocaleString()];
+      await fetch(appendUrl, {
+        method: 'POST',
+        headers: {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'},
+        body: JSON.stringify({values: [rowData]})
+      });
+    } catch(e) { console.log('Sheet append error:', e); }
+  }
+
+  closeModal();
+  if (map) map.setCenter({lat, lng}), map.setZoom(16);
+  openPanel(np.id);
+  toast(`📍 Added: ${addr.split(',')[0]}`);
+};
+
+// ── CSV EXPORT ────────────────────────────────────────────────────
+window.exportCSV = function() {
+  const headers = ['ID','Address','City','Status','Last Contacted','Acres','Zoning','Opp Zone','Type','Assessed Value','Taxes/yr','Owner','Contact','Phone 1','Email 1','Notes','Crexi Link'];
+  const rows = PARCELS
+    .filter(p => activeFilter === 'all' || (liveData[p.id]?.status || p.status) === activeFilter)
+    .map(p => [
+      p.id, `"${p.address.replace(/"/g,'')}"`, p.city,
+      liveData[p.id]?.status || p.status,
+      liveData[p.id]?.lastContacted || '—',
+      p.acres, p.zoning, p.oppZone, p.type,
+      `"${p.assessedVal}"`, `"${p.taxes}"`,
+      `"${p.ownerName.replace(/"/g,'')}"`,
+      `"${p.contactName.replace(/"/g,'')}"`,
+      p.phones[0] || '', p.emails[0] || '',
+      `"${(liveData[p.id]?.notes || '').replace(/"/g,'').replace(/
+/g,' ')}"`,
+      p.cxLink || ''
+    ].join(','));
+  const csv = [headers.join(','), ...rows].join('
+');
+  const blob = new Blob([csv], {type: 'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  const label = activeFilter === 'all' ? 'all' : activeFilter.toLowerCase().replace(/ /g,'-');
+  a.download = `pasco-sr52-${label}-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  toast(`✓ Exported ${rows.length} parcels`);
+};
+
+function toast(msg, ms=3000) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), ms);
+}
+
+// Load Google Identity Services
+const gis = document.createElement('script');
+gis.src = 'https://accounts.google.com/gsi/client';
+gis.onload = () => { /* ready */ };
+document.body.appendChild(gis);
+</script>
+</body>
+</html>
