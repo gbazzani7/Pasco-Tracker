@@ -188,6 +188,13 @@ html,body{height:100%;overflow:hidden;font-family:var(--font);background:#111;co
   border:1px solid rgba(255,255,255,0.15)!important;border-radius:8px!important;
   box-shadow:0 4px 20px rgba(0,0,0,.6)!important}
 .gm-style .gm-style-iw-tc::after{background:#0f1115!important}
+.leaflet-tooltip{background:#0f1115!important;border:1px solid rgba(255,255,255,0.15)!important;
+  border-radius:8px!important;color:#f0f2f5!important;font-family:IBM Plex Sans,sans-serif!important;
+  padding:8px 11px!important;box-shadow:0 4px 20px rgba(0,0,0,.6)!important}
+.leaflet-tooltip::before{display:none!important}
+.leaflet-bar{border:1px solid rgba(255,255,255,0.1)!important;box-shadow:none!important}
+.leaflet-control-zoom a{background:rgba(10,12,16,0.97)!important;color:#f0f2f5!important;
+  border-color:rgba(255,255,255,0.1)!important}
 </style>
 </head>
 <body>
@@ -306,7 +313,8 @@ html,body{height:100%;overflow:hidden;font-family:var(--font);background:#111;co
 </div>
 <div id="toast"></div>
 <script>
-const GMAPS_KEY = 'AIzaSyBL8yJWSamzDDCXmw61YJaotRo3WOXsYrc';
+const SHEETS_API_KEY = 'AIzaSyBL8yJWSamzDDCXmw61YJaotRo3WOXsYrc'; // For Google Sheets only
+const GMAPS_KEY = SHEETS_API_KEY; // kept for compatibility
 const SHEET_ID  = '1hMIfJ-E1rqziTBVEE0vqhDqJtQDcJwxE';
 const SHEET_TAB = 'Pasco RT 52';
 const SHEETS_KEY = GMAPS_KEY; // Same API key works for Sheets too
@@ -393,18 +401,7 @@ function loadLocalData() {
 }
 
 // ── GOOGLE MAPS ───────────────────────────────────────────────────
-window.initGoogleMapCb = function() {
-  map = new google.maps.Map(document.getElementById('map'), {
-    center: {lat:28.33, lng:-82.65}, zoom:11,
-    mapTypeId:'hybrid', disableDefaultUI:true, zoomControl:true,
-    zoomControlOptions: {position: google.maps.ControlPosition.RIGHT_BOTTOM}
-  });
-  loadLocalData();
-  loadSheetData().then(() => {
-    PARCELS.forEach(p => addGMarker(p));
-    refreshAllMarkers(); renderSumbar(); updateCount();
-  });
-};
+// Google Maps callback removed - using Leaflet instead
 
 function pinSvg(color, sel) {
   const h=sel?40:30, w=sel?27:20;
@@ -415,37 +412,50 @@ function pinSvg(color, sel) {
     <circle cx="10" cy="9" r="${sel?4.5:3}" fill="white" opacity="0.9"/></svg>`;
 }
 
-function addGMarker(p) {
+function addLMarker(p) {
   if (!map) return;
-  const div = document.createElement('div');
-  div.innerHTML = pinSvg(SC[liveData[p.id]?.status]||'#9ca3af', false);
-  div.style.cssText = 'cursor:pointer;transition:transform .15s;position:absolute';
-  div.addEventListener('mouseenter', () => div.style.transform='scale(1.3)');
-  div.addEventListener('mouseleave', () => { if(selectedId!==p.id) div.style.transform=''; });
-  div.addEventListener('click', () => openPanel(p.id));
-  const ov = new google.maps.OverlayView();
-  ov.onAdd = function() { this.getPanes().overlayMouseTarget.appendChild(div); };
-  ov.draw = function() {
-    const proj = this.getProjection();
-    const px = proj.fromLatLngToDivPixel(new google.maps.LatLng(p.lat, p.lng));
-    if (px) { div.style.left=(px.x-10)+'px'; div.style.top=(px.y-30)+'px'; }
-  };
-  ov.onRemove = function() { div.parentNode?.removeChild(div); };
-  ov.setMap(map);
-  ov._pid=p.id; ov._div=div;
-  gMarkers.push(ov);
+  const c = SC[liveData[p.id]?.status]||'#9ca3af';
+  const icon = lIcon(c, false);
+  const m = L.marker([p.lat, p.lng], {icon});
+  m.bindTooltip(ttHtml(p), {permanent:false, direction:'top', offset:[0,-28], opacity:1});
+  m.on('click', () => openPanel(p.id));
+  m._pid = p.id;
+  m.addTo(map);
+  gMarkers.push(m);
+}
+
+function lIcon(color, sel) {
+  const h=sel?40:30, w=sel?27:20;
+  return L.divIcon({
+    html: pinSvg(color, sel),
+    className: '',
+    iconSize: [w, h],
+    iconAnchor: [w/2, h]
+  });
+}
+
+function ttHtml(p) {
+  const s = liveData[p.id]?.status||p.status;
+  return `<div style="font-family:IBM Plex Sans,sans-serif;padding:2px;min-width:160px">
+    <div style="font-weight:600;font-size:12px;color:#f0f2f5;margin-bottom:2px">${p.address}</div>
+    <div style="font-size:10px;color:#8b95a1;margin-bottom:3px">${p.ownerName}</div>
+    <div style="font-size:10px;color:${SC[s]}">${s}</div>
+  </div>`;
 }
 
 function refreshAllMarkers() {
-  gMarkers.forEach(ov => {
-    const id=ov._pid;
-    const s=liveData[id]?.status||'Pending';
-    const c=SC[s]||'#9ca3af';
-    const sel=id===selectedId;
-    ov._div.innerHTML=pinSvg(c,sel);
-    ov._div.style.zIndex=sel?'999':'';
-    const show=activeFilter==='all'||s===activeFilter;
-    ov._div.style.display=show?'':'none';
+  gMarkers.forEach(m => {
+    const id = m._pid;
+    const p = PARCELS.find(x => x.id === id);
+    if (!p) return;
+    const s = liveData[id]?.status||'Pending';
+    const c = SC[s]||'#9ca3af';
+    const sel = id === selectedId;
+    m.setIcon(lIcon(c, sel));
+    if (m.getTooltip()) m.setTooltipContent(ttHtml(p));
+    const show = activeFilter==='all' || s===activeFilter;
+    if (show && !map.hasLayer(m)) map.addLayer(m);
+    else if (!show && map.hasLayer(m)) map.removeLayer(m);
   });
 }
 
@@ -525,7 +535,16 @@ window.closePanel=function(){
 window.setMapType=function(type){
   document.getElementById('btn-hybrid').classList.toggle('active',type==='hybrid');
   document.getElementById('btn-road').classList.toggle('active',type==='road');
-  if(map)map.setMapTypeId(type==='hybrid'?'hybrid':'roadmap');
+  if(!map||!window._hybridLayers)return;
+  if(window._mapMode===type)return;
+  window._mapMode=type;
+  if(type==='hybrid'){
+    if(map.hasLayer(window._roadLayer))map.removeLayer(window._roadLayer);
+    window._hybridLayers.forEach(l=>l.addTo(map));
+  }else{
+    window._hybridLayers.forEach(l=>{if(map.hasLayer(l))map.removeLayer(l)});
+    window._roadLayer.addTo(map);
+  }
 };
 
 document.querySelectorAll('.fc').forEach(chip=>{
@@ -575,14 +594,15 @@ window.geocodeAddress=async function(){
   const res=document.getElementById('geo-res');
   res.textContent='Locating...';res.className='geo-res';
   try{
-    const r=await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(addr)}&key=${GMAPS_KEY}`);
+        const r=await fetch('https://nominatim.openstreetmap.org/search?format=json&q='+encodeURIComponent(addr)+'&limit=1&countrycodes=us');
     const d=await r.json();
-    if(d.results?.length){
-      const {lat,lng}=d.results[0].geometry.location;
-      pendingLat=parseFloat(lat.toFixed(6));pendingLng=parseFloat(lng.toFixed(6));
+    if(d.length){
+      pendingLat=parseFloat(parseFloat(d[0].lat).toFixed(6));
+      pendingLng=parseFloat(parseFloat(d[0].lon).toFixed(6));
       document.getElementById('f-lat').value=pendingLat;
       document.getElementById('f-lng').value=pendingLng;
-      res.textContent=`✓ ${d.results[0].formatted_address}`;res.className='geo-res ok';
+      res.textContent='✓ '+d[0].display_name.split(',').slice(0,3).join(',');
+      res.className='geo-res ok';
     }else{res.textContent='Not found - enter lat/lng manually';res.className='geo-res err';}
   }catch{res.textContent='Geocoding error - enter lat/lng manually';res.className='geo-res err';}
 };
@@ -619,7 +639,7 @@ window.confirmAdd=function(){
   writeToSheet(np.id,'status',status);
   if(notes)writeToSheet(np.id,'notes',notes);
   closeModal();
-  if(map)map.setCenter({lat,lng}),map.setZoom(16);
+  if(map&&map.setView)map.setView([lat,lng],16);
   openPanel(np.id);
   toast(`Pin Added: ${addr.split(',')[0]}`);
 };
@@ -657,11 +677,32 @@ function toast(msg,ms=3000){
   setTimeout(()=>t.classList.remove('show'),ms);
 }
 
-// Load Google Maps
-const s=document.createElement('script');
-s.src=`https://maps.googleapis.com/maps/api/js?key=${GMAPS_KEY}&callback=initGoogleMapCb&v=weekly`;
-s.async=true;
-document.body.appendChild(s);
+// Load Leaflet + Esri (no VPN issues)
+const leafletCSS = document.createElement('link');
+leafletCSS.rel = 'stylesheet';
+leafletCSS.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+document.head.appendChild(leafletCSS);
+const leafletJS = document.createElement('script');
+leafletJS.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+leafletJS.onload = function() {
+  map = L.map('map', {zoomControl:true}).setView([28.33, -82.65], 11);
+  window._hybridLayers = [
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      {attribution:'Esri, Maxar, Earthstar Geographics', maxZoom:19}),
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+      {attribution:'Esri', maxZoom:19, opacity:0.8})
+  ];
+  window._roadLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+    {attribution:'©OpenStreetMap ©CartoDB', subdomains:'abcd', maxZoom:19});
+  window._mapMode = 'hybrid';
+  window._hybridLayers.forEach(l => l.addTo(map));
+  loadLocalData();
+  loadSheetData().then(() => {
+    PARCELS.forEach(p => addLMarker(p));
+    refreshAllMarkers(); renderSumbar(); updateCount();
+  });
+};
+document.body.appendChild(leafletJS);
 </script>
 </body>
 </html>
