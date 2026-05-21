@@ -30,11 +30,92 @@ body {
   color: var(--text);
 }
 
+body.locked {
+  overflow: hidden;
+}
+
 button,
 input,
 textarea,
 select {
   font: inherit;
+}
+
+.access-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  background: radial-gradient(circle at top, rgba(59, 130, 246, 0.18), transparent 34%),
+    rgba(16, 17, 20, 0.96);
+}
+
+.access-gate[hidden] {
+  display: none;
+}
+
+.access-card {
+  display: grid;
+  gap: 14px;
+  width: min(390px, 100%);
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(23, 25, 29, 0.98);
+  box-shadow: var(--shadow);
+}
+
+.access-kicker {
+  color: var(--dim);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.access-card h1 {
+  margin: 6px 0 4px;
+  font-size: 22px;
+}
+
+.access-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.access-card label {
+  display: grid;
+  gap: 6px;
+  color: var(--dim);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.access-card input,
+.access-card select {
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  outline: 0;
+  padding: 8px 10px;
+  font-size: 14px;
+}
+
+.access-card select option {
+  color: #111;
+}
+
+.access-error {
+  min-height: 18px;
+  color: #fecaca !important;
 }
 
 button {
@@ -103,6 +184,7 @@ button {
 .primary-btn,
 .ghost-btn,
 .icon-btn,
+.bell-btn,
 .filter-btn,
 .segmented button,
 .archive-toggle {
@@ -137,9 +219,52 @@ button {
   font-weight: 800;
 }
 
+.bell-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 48px;
+  justify-content: center;
+  padding: 0 10px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.bell-btn span {
+  display: grid;
+  width: 17px;
+  height: 17px;
+  place-items: center;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.bell-btn strong {
+  min-width: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.bell-btn.has-items {
+  border-color: rgba(245, 158, 11, 0.65);
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.13);
+}
+
+.user-btn {
+  max-width: 92px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .primary-btn:hover,
 .ghost-btn:hover,
 .icon-btn:hover,
+.bell-btn:hover,
 .filter-btn:hover,
 .segmented button:hover,
 .archive-toggle:hover {
@@ -677,6 +802,94 @@ tbody tr:hover {
   transform: translateX(0);
 }
 
+.notification-drawer {
+  position: fixed;
+  top: var(--topbar-h);
+  right: 386px;
+  z-index: 1500;
+  display: none;
+  width: min(360px, calc(100vw - 28px));
+  max-height: min(520px, calc(100vh - var(--topbar-h) - 28px));
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-top: 0;
+  border-radius: 0 0 8px 8px;
+  background: rgba(23, 25, 29, 0.98);
+  box-shadow: var(--shadow);
+}
+
+.notification-drawer.open {
+  display: block;
+}
+
+.notification-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.notification-head strong {
+  display: block;
+  font-size: 13px;
+}
+
+.notification-head span {
+  display: block;
+  margin-top: 3px;
+  color: var(--dim);
+  font-size: 11px;
+}
+
+.notification-list {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+}
+
+.notification-item {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.notification-item:hover {
+  border-color: var(--line-strong);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.notification-item strong,
+.notification-item span,
+.notification-item em {
+  overflow-wrap: anywhere;
+}
+
+.notification-item strong {
+  font-size: 12px;
+}
+
+.notification-item span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.notification-item em,
+.notification-empty {
+  color: var(--dim);
+  font-size: 11px;
+  font-style: normal;
+}
+
 .panel-head {
   flex: 0 0 auto;
   padding: 18px 18px 14px;
@@ -910,6 +1123,7 @@ summary::-webkit-details-marker {
 
 .activity-form,
 .action-form,
+.attention-form,
 .doc-form {
   display: grid;
   gap: 8px;
@@ -918,6 +1132,7 @@ summary::-webkit-details-marker {
 
 .activity-list,
 .action-list,
+.attention-list,
 .doc-list {
   display: grid;
   gap: 8px;
@@ -925,6 +1140,7 @@ summary::-webkit-details-marker {
 
 .activity-item,
 .action-item,
+.attention-item,
 .doc-item {
   padding: 10px;
   border: 1px solid var(--line);
@@ -951,6 +1167,7 @@ summary::-webkit-details-marker {
 
 .activity-item p,
 .action-item p,
+.attention-item p,
 .doc-item p,
 .doc-item a {
   margin: 0;
@@ -965,17 +1182,20 @@ summary::-webkit-details-marker {
 }
 
 .activity-form,
-.action-form {
+.action-form,
+.attention-form {
   grid-template-columns: 1fr 1fr;
 }
 
 .activity-form textarea,
 .action-form .primary-btn,
+.attention-form .primary-btn,
 .activity-form .primary-btn {
   grid-column: 1 / -1;
 }
 
 .action-form input,
+.attention-form input,
 .action-form select,
 .activity-form input,
 .activity-form select,
@@ -989,6 +1209,13 @@ summary::-webkit-details-marker {
   outline: 0;
   padding: 8px 10px;
   font-size: 13px;
+}
+
+.attention-item span {
+  display: block;
+  margin-top: 5px;
+  color: var(--dim);
+  font-size: 10px;
 }
 
 .action-form select option,
@@ -1404,6 +1631,12 @@ summary::-webkit-details-marker {
 
   .side-panel {
     width: 100vw;
+  }
+
+  .notification-drawer {
+    right: 8px;
+    left: 8px;
+    width: auto;
   }
 
   .summary-bar {

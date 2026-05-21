@@ -10,6 +10,30 @@
     <link rel="stylesheet" href="./styles.css">
   </head>
   <body>
+    <section class="access-gate" id="accessGate" hidden>
+      <form class="access-card" id="accessForm">
+        <div>
+          <span class="access-kicker">Private Tracker</span>
+          <h1>Pasco Site Tracker</h1>
+          <p>Enter the shared access code and choose your name.</p>
+        </div>
+        <label>
+          Name
+          <select id="accessUser">
+            <option>Gregg</option>
+            <option>Craig</option>
+            <option>Other User</option>
+          </select>
+        </label>
+        <label>
+          Access Code
+          <input id="accessCode" type="password" autocomplete="current-password">
+        </label>
+        <p class="access-error" id="accessError"></p>
+        <button class="primary-btn" type="submit">Open Tracker</button>
+      </form>
+    </section>
+
     <header class="topbar">
       <div class="brand" aria-label="Pasco Site Tracker">
         <strong>Pasco Site Tracker</strong>
@@ -36,15 +60,16 @@
           <span>Search</span>
           <input id="searchInput" type="search" autocomplete="off">
         </label>
-        <label class="select-wrap">
-          <span>Type</span>
-          <select id="typeFilter"></select>
-        </label>
+        <button class="bell-btn" id="notificationBtn" type="button" aria-label="Needs attention">
+          <span>!</span>
+          <strong id="notificationCount">0</strong>
+        </button>
         <div class="segmented" aria-label="Map layer">
           <button id="satelliteBtn" class="active" type="button">Satellite</button>
           <button id="roadBtn" type="button">Road</button>
         </div>
         <button class="ghost-btn" id="focusBtn" type="button">Focus</button>
+        <button class="ghost-btn user-btn" id="userBtn" type="button">User</button>
         <label class="archive-toggle">
           <input id="showArchived" type="checkbox">
           <span>Archived</span>
@@ -60,6 +85,7 @@
       <aside class="summary-bar" id="summaryBar"></aside>
       <section class="pipeline-view" id="pipelineView" aria-label="Acquisition pipeline"></section>
       <section class="list-view" id="listView" aria-label="Parcel list"></section>
+      <aside class="notification-drawer" id="notificationDrawer" aria-live="polite"></aside>
       <aside class="side-panel" id="sidePanel" aria-live="polite"></aside>
     </main>
 

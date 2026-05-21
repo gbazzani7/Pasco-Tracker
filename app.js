@@ -14,20 +14,25 @@ const SUPABASE_TABLE = "parcels";
 const LOCAL_SAVE_DELAY = 350;
 const SHARED_SAVE_DELAY = 900;
 const SHARED_REFRESH_MS = 25000;
+const ACCESS_CODE = "pasco52";
+const ACCESS_SESSION_KEY = "pasco-site-tracker-access";
+const USER_KEY = "pasco-site-tracker-user";
 
 const state = {
   parcels: [],
   selectedId: null,
   activeStatus: "all",
-  activeType: "all",
   search: "",
   showArchived: false,
+  notificationsOpen: false,
   layerMode: "satellite",
   viewMode: "map",
   focusMode: false,
   pendingImport: [],
   dirtyParcelIds: new Set(),
   sharedMode: false,
+  currentUser: "Gregg",
+  chromeBound: false,
 };
 
 let map;
@@ -47,6 +52,19 @@ document.addEventListener("DOMContentLoaded", start);
 
 async function start() {
   cacheElements();
+  bindAccessEvents();
+  if (!hasAccess()) {
+    showAccessGate();
+    return;
+  }
+  await initializeTracker();
+}
+
+async function initializeTracker() {
+  document.body.classList.remove("locked");
+  els.accessGate.hidden = true;
+  state.currentUser = localStorage.getItem(USER_KEY) || "Gregg";
+  renderCurrentUser();
   bindChromeEvents();
   renderStatusControls();
   renderNewStatusOptions();
@@ -57,7 +75,6 @@ async function start() {
     const baseParcels = await loadBaseParcels();
     state.parcels = await loadInitialParcels(baseParcels);
     initMap();
-    renderTypeFilter();
     renderAll();
     setSync(state.sharedMode ? "Synced shared" : "Autosaved locally");
   } catch (error) {
@@ -74,7 +91,45 @@ function resetLocalStateIfRequested() {
   window.history.replaceState({}, document.title, window.location.pathname);
 }
 
+function bindAccessEvents() {
+  els.accessForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const code = els.accessCode.value.trim();
+    if (code !== ACCESS_CODE) {
+      els.accessError.textContent = "That access code is not correct.";
+      els.accessCode.select();
+      return;
+    }
+    const user = els.accessUser.value || "Gregg";
+    localStorage.setItem(ACCESS_SESSION_KEY, "ok");
+    localStorage.setItem(USER_KEY, user);
+    els.accessError.textContent = "";
+    await initializeTracker();
+  });
+}
+
+function hasAccess() {
+  return localStorage.getItem(ACCESS_SESSION_KEY) === "ok";
+}
+
+function showAccessGate() {
+  document.body.classList.add("locked");
+  els.accessGate.hidden = false;
+  els.accessUser.value = localStorage.getItem(USER_KEY) || "Gregg";
+  els.accessCode.value = "";
+  els.accessCode.focus();
+}
+
+function renderCurrentUser() {
+  els.userBtn.textContent = state.currentUser;
+}
+
 function cacheElements() {
+  els.accessGate = document.getElementById("accessGate");
+  els.accessForm = document.getElementById("accessForm");
+  els.accessUser = document.getElementById("accessUser");
+  els.accessCode = document.getElementById("accessCode");
+  els.accessError = document.getElementById("accessError");
   els.map = document.getElementById("map");
   els.worklist = document.getElementById("worklist");
   els.pipelineView = document.getElementById("pipelineView");
@@ -83,8 +138,10 @@ function cacheElements() {
   els.statusFilters = document.getElementById("statusFilters");
   els.summaryBar = document.getElementById("summaryBar");
   els.sidePanel = document.getElementById("sidePanel");
+  els.notificationDrawer = document.getElementById("notificationDrawer");
+  els.notificationBtn = document.getElementById("notificationBtn");
+  els.notificationCount = document.getElementById("notificationCount");
   els.searchInput = document.getElementById("searchInput");
-  els.typeFilter = document.getElementById("typeFilter");
   els.showArchived = document.getElementById("showArchived");
   els.syncState = document.getElementById("syncState");
   els.toast = document.getElementById("toast");
@@ -92,6 +149,7 @@ function cacheElements() {
   els.roadBtn = document.getElementById("roadBtn");
   els.focusBtn = document.getElementById("focusBtn");
   els.focusExitBtn = document.getElementById("focusExitBtn");
+  els.userBtn = document.getElementById("userBtn");
   els.saveBtn = document.getElementById("saveBtn");
   els.backupBtn = document.getElementById("backupBtn");
   els.parcelModal = document.getElementById("parcelModal");
@@ -137,6 +195,7 @@ function normalizeParcel(parcel) {
     actions: Array.isArray(parcel.actions) ? parcel.actions : [],
     extraFields: parcel.extraFields || parcel.extraData || {},
     documents: Array.isArray(parcel.documents) ? parcel.documents : [],
+    attentionItems: Array.isArray(parcel.attentionItems) ? parcel.attentionItems : [],
     contact: {
       name: parcel.contact?.name || "",
       phones: Array.isArray(parcel.contact?.phones) ? parcel.contact.phones : [],
@@ -343,6 +402,8 @@ async function refreshFromShared() {
 }
 
 function bindChromeEvents() {
+  if (state.chromeBound) return;
+  state.chromeBound = true;
   document.getElementById("addParcelBtn").addEventListener("click", openParcelModal);
   document.getElementById("importBtn").addEventListener("click", openImportModal);
   document.getElementById("exportBtn").addEventListener("click", exportCsv);
@@ -372,11 +433,6 @@ function bindChromeEvents() {
     renderAll();
   });
 
-  els.typeFilter.addEventListener("change", (event) => {
-    state.activeType = event.target.value;
-    renderAll();
-  });
-
   els.showArchived.addEventListener("change", (event) => {
     state.showArchived = event.target.checked;
     renderAll();
@@ -384,8 +440,16 @@ function bindChromeEvents() {
 
   els.satelliteBtn.addEventListener("click", () => setLayerMode("satellite"));
   els.roadBtn.addEventListener("click", () => setLayerMode("road"));
+  els.notificationBtn.addEventListener("click", () => {
+    state.notificationsOpen = !state.notificationsOpen;
+    renderNotifications();
+  });
   els.focusBtn.addEventListener("click", () => setFocusMode(true));
   els.focusExitBtn.addEventListener("click", () => setFocusMode(false));
+  els.userBtn.addEventListener("click", () => {
+    localStorage.removeItem(ACCESS_SESSION_KEY);
+    showAccessGate();
+  });
   els.saveBtn.addEventListener("click", () => {
     persistNow();
     toast(state.sharedMode ? "Saved to shared tracker" : "Saved on this computer");
@@ -401,6 +465,7 @@ function bindChromeEvents() {
   els.sidePanel.addEventListener("click", handlePanelClick);
   els.sidePanel.addEventListener("input", handlePanelInput);
   els.sidePanel.addEventListener("change", handlePanelInput);
+  els.notificationDrawer.addEventListener("click", handleNotificationClick);
 }
 
 function initMap() {
@@ -433,13 +498,13 @@ function initMap() {
 
 function renderAll() {
   renderStatusControls();
-  renderTypeFilter();
   renderViewMode();
   renderWorklist();
   renderMarkers();
   renderPipelineView();
   renderListView();
   renderSummaryBar();
+  renderNotifications();
   renderPanel();
 }
 
@@ -482,20 +547,6 @@ function renderViewMode() {
   els.viewToggle.querySelectorAll("[data-view]").forEach((button) => {
     button.classList.toggle("active", button.dataset.view === state.viewMode);
   });
-}
-
-function renderTypeFilter() {
-  const current = state.activeType;
-  const types = Array.from(new Set(state.parcels.map((parcel) => parcel.type || parcel.category).filter(Boolean))).sort();
-  els.typeFilter.innerHTML = [
-    `<option value="all">All</option>`,
-    ...types.map((type) => `<option value="${escapeAttr(type)}">${escapeHtml(type)}</option>`),
-  ].join("");
-  if (types.includes(current) || current === "all") {
-    els.typeFilter.value = current;
-  } else {
-    state.activeType = "all";
-  }
 }
 
 function renderWorklist() {
@@ -676,6 +727,55 @@ function renderSummaryBar() {
   ].join("");
 }
 
+function renderNotifications() {
+  const items = getOpenNotifications();
+  els.notificationCount.textContent = items.length;
+  els.notificationBtn.classList.toggle("has-items", items.length > 0);
+  els.notificationDrawer.classList.toggle("open", state.notificationsOpen);
+
+  if (!state.notificationsOpen) {
+    els.notificationDrawer.innerHTML = "";
+    return;
+  }
+
+  els.notificationDrawer.innerHTML = `
+    <div class="notification-head">
+      <div>
+        <strong>Needs Attention</strong>
+        <span>${items.length} open</span>
+      </div>
+      <button class="icon-btn" data-notification-action="close" type="button" aria-label="Close">x</button>
+    </div>
+    <div class="notification-list">
+      ${
+        items
+          .map((item) => {
+            return `<button class="notification-item" data-notification-action="open" data-parcel-id="${escapeAttr(item.parcel.id)}" type="button">
+              <strong>${escapeHtml(item.parcel.displayAddress)}</strong>
+              <span>${escapeHtml(item.attention.text)}</span>
+              <em>${escapeHtml(formatDateTime(item.attention.createdAt))}</em>
+            </button>`;
+          })
+          .join("") || `<div class="notification-empty">No open notifications.</div>`
+      }
+    </div>
+  `;
+}
+
+function handleNotificationClick(event) {
+  const target = event.target.closest("[data-notification-action]");
+  if (!target) return;
+  if (target.dataset.notificationAction === "close") {
+    state.notificationsOpen = false;
+    renderNotifications();
+    return;
+  }
+  if (target.dataset.notificationAction === "open") {
+    state.notificationsOpen = false;
+    selectParcel(target.dataset.parcelId);
+  }
+}
+
 function renderPanel() {
   const parcel = getSelectedParcel();
   if (!parcel) {
@@ -745,6 +845,17 @@ function renderPanel() {
         <label for="panelNotes">Property Notes</label>
         <textarea id="panelNotes" data-bind="notes" rows="5">${escapeHtml(parcel.notes || "")}</textarea>
       </div>
+
+      <details open>
+        <summary>Needs Attention</summary>
+        <div class="attention-form">
+          <input id="attentionText" type="text" placeholder="Example: Owner wants Gregg to call">
+          <button class="primary-btn" data-action="add-attention" type="button">Notify</button>
+        </div>
+        <div class="attention-list">
+          ${renderAttentionItems(parcel)}
+        </div>
+      </details>
 
       <details open>
         <summary>Follow-Ups</summary>
@@ -903,6 +1014,23 @@ function renderActivity(parcel) {
     .join("");
 }
 
+function renderAttentionItems(parcel) {
+  const openItems = getOpenAttentionItems(parcel);
+  if (!openItems.length) {
+    return `<div class="attention-item empty"><p>No open notifications.</p></div>`;
+  }
+  return openItems
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+    .map((item) => {
+      return `<div class="attention-item">
+        <p>${escapeHtml(item.text)}</p>
+        <span>${escapeHtml(formatDateTime(item.createdAt))}${item.createdBy ? ` by ${escapeHtml(item.createdBy)}` : ""}</span>
+        <button class="mini-link" data-action="resolve-attention" data-attention-id="${escapeAttr(item.id)}" type="button">Clear</button>
+      </div>`;
+    })
+    .join("");
+}
+
 function renderActions(parcel) {
   if (!parcel.actions.length) {
     return `<div class="action-item empty"><p>No open action items.</p></div>`;
@@ -983,6 +1111,9 @@ function handlePanelClick(event) {
     case "add-action":
       addAction(parcel);
       break;
+    case "add-attention":
+      addAttentionItem(parcel);
+      break;
     case "add-document":
       addDocument(parcel);
       break;
@@ -994,6 +1125,9 @@ function handlePanelClick(event) {
       break;
     case "remove-action":
       removeAction(parcel, target.dataset.actionId);
+      break;
+    case "resolve-attention":
+      resolveAttentionItem(parcel, target.dataset.attentionId);
       break;
     case "remove-document":
       removeDocument(parcel, target.dataset.documentId);
@@ -1087,6 +1221,38 @@ function removeActivity(parcel, activityId) {
   persistNow();
   renderPanel();
   toast("Activity removed");
+}
+
+function addAttentionItem(parcel) {
+  const input = document.getElementById("attentionText");
+  const text = input.value.trim();
+  if (!text) return;
+  parcel.attentionItems = Array.isArray(parcel.attentionItems) ? parcel.attentionItems : [];
+  parcel.attentionItems.push({
+    id: makeId(`${parcel.id}|attention|${Date.now()}|${text}`),
+    text,
+    createdAt: new Date().toISOString(),
+    createdBy: getCurrentUserLabel(),
+    resolvedAt: "",
+    resolvedBy: "",
+  });
+  parcel.updatedAt = new Date().toISOString();
+  markParcelDirty(parcel);
+  persistNow();
+  renderAll();
+  toast("Notification added");
+}
+
+function resolveAttentionItem(parcel, attentionId) {
+  const item = (parcel.attentionItems || []).find((entry) => entry.id === attentionId);
+  if (!item) return;
+  item.resolvedAt = new Date().toISOString();
+  item.resolvedBy = getCurrentUserLabel();
+  parcel.updatedAt = new Date().toISOString();
+  markParcelDirty(parcel);
+  persistNow();
+  renderAll();
+  toast("Notification cleared");
 }
 
 function addAction(parcel) {
@@ -1209,14 +1375,12 @@ function makeTooltip(parcel) {
 function getVisibleParcels() {
   return filteredBaseParcels().filter((parcel) => {
     if (state.activeStatus !== "all" && parcel.status !== state.activeStatus) return false;
-    if (state.activeType !== "all" && parcel.type !== state.activeType) return false;
     return matchesSearch(parcel);
   });
 }
 
 function getPipelineParcels() {
   return filteredBaseParcels().filter((parcel) => {
-    if (state.activeType !== "all" && parcel.type !== state.activeType) return false;
     return matchesSearch(parcel);
   });
 }
@@ -1286,6 +1450,25 @@ function getCounts() {
     counts[parcel.status] = (counts[parcel.status] || 0) + 1;
   });
   return counts;
+}
+
+function getOpenNotifications() {
+  return filteredBaseParcels()
+    .flatMap((parcel) =>
+      getOpenAttentionItems(parcel).map((attention) => ({
+        parcel,
+        attention,
+      }))
+    )
+    .sort((a, b) => String(b.attention.createdAt).localeCompare(String(a.attention.createdAt)));
+}
+
+function getOpenAttentionItems(parcel) {
+  return (parcel.attentionItems || []).filter((item) => !item.resolvedAt);
+}
+
+function getCurrentUserLabel() {
+  return state.currentUser || localStorage.getItem(USER_KEY) || "Gregg";
 }
 
 function getStatus(name) {
@@ -1507,6 +1690,7 @@ function addParcelFromForm(event) {
     activity: [],
     comments: [],
     actions: [],
+    attentionItems: [],
     lastContacted: "",
     crexiLink: String(form.get("crexiLink") || "").trim(),
     documents: [],
@@ -1657,6 +1841,7 @@ function parcelFromImportRow(row, headers, sourceName, sourceRow) {
     activity: [],
     comments: [],
     actions: [],
+    attentionItems: [],
     lastContacted: "",
     crexiLink: link,
     documents: [],
