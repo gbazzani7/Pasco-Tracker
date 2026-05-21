@@ -847,6 +847,8 @@ function renderPanel() {
         ${textField("Crexi Link", "crexiLink", parcel.crexiLink, "wide")}
       </div>
 
+      ${renderPinActions(parcel)}
+
       <div class="detail-field" style="margin-top:12px">
         <label for="panelNotes">Property Notes</label>
         <textarea id="panelNotes" data-bind="notes" rows="5">${escapeHtml(parcel.notes || "")}</textarea>
@@ -938,16 +940,18 @@ function renderPanel() {
           ${renderDocuments(parcel)}
         </div>
       </details>
-
-      <div class="panel-actions">
-        <button class="ghost-btn" data-action="move-pin" type="button">Move Pin</button>
-        <button class="danger-btn" data-action="${parcel.archived ? "unarchive" : "archive"}" type="button">
-          ${parcel.archived ? "Restore Pin" : "Archive Pin"}
-        </button>
-        <button class="danger-btn" data-action="delete-pin" type="button">Delete Pin</button>
-      </div>
     </div>
   `;
+}
+
+function renderPinActions(parcel) {
+  return `<div class="pin-actions">
+    <button class="ghost-btn" data-action="move-pin" type="button">Move Pin</button>
+    <button class="danger-btn" data-action="${parcel.archived ? "unarchive" : "archive"}" type="button">
+      ${parcel.archived ? "Restore Pin" : "Archive Pin"}
+    </button>
+    <button class="danger-btn strong-danger" data-action="delete-pin" type="button">Delete Pin</button>
+  </div>`;
 }
 
 function textField(label, bind, value, extraClass = "") {
@@ -1628,8 +1632,9 @@ function useMapCenterForNewPin() {
 
 function startNewPinPlacement() {
   state.placementMode = { type: "new" };
-  setGeocodeResult("Click the exact location on the map. You can drag/zoom first.", "ok");
-  toast("Click the map to place the new pin");
+  setGeocodeResult("Click the exact location on the map. The form will reopen after you place it.", "ok");
+  els.parcelModal.close();
+  toast("Click the map where this pin should go");
 }
 
 function setNewPinCoordinates(lat, lng) {
@@ -1688,6 +1693,7 @@ function handleMapClick(event) {
     showNewPinPreview(lat, lng, "Manually placed pin");
     setGeocodeResult("Pin placed manually. Click Add Pin when ready.", "ok");
     state.placementMode = null;
+    els.parcelModal.showModal();
     return;
   }
   if (state.placementMode.type === "existing") {
