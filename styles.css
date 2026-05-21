@@ -1326,6 +1326,7 @@ summary::-webkit-details-marker {
 
 .panel-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: 14px;
 }
@@ -1431,6 +1432,7 @@ summary::-webkit-details-marker {
 .field-button {
   width: 100%;
   min-height: 36px;
+  margin-bottom: 6px;
 }
 
 .field-note {

@@ -33,6 +33,7 @@ const state = {
   sharedMode: false,
   currentUser: "Gregg",
   chromeBound: false,
+  placementMode: null,
 };
 
 let map;
@@ -209,6 +210,7 @@ function normalizeParcel(parcel) {
       mailingZip: parcel.owner?.mailingZip || "",
     },
     archived: Boolean(parcel.archived),
+    deleted: Boolean(parcel.deleted),
   };
 }
 
@@ -413,6 +415,7 @@ function bindChromeEvents() {
   document.getElementById("closeImportModal").addEventListener("click", closeImportModal);
   document.getElementById("cancelImportBtn").addEventListener("click", closeImportModal);
   document.getElementById("geocodeBtn").addEventListener("click", geocodeNewAddress);
+  document.getElementById("placeNewPinBtn").addEventListener("click", startNewPinPlacement);
   document.getElementById("mapCenterBtn").addEventListener("click", useMapCenterForNewPin);
   document.getElementById("newStatus").addEventListener("change", refreshNewPinPreview);
   document.getElementById("newLat").addEventListener("change", refreshNewPinPreview);
@@ -494,6 +497,7 @@ function initMap() {
   });
 
   satelliteLayer.addTo(map);
+  map.on("click", handleMapClick);
 }
 
 function renderAll() {
@@ -714,7 +718,8 @@ function renderMarkers() {
 function renderSummaryBar() {
   const counts = getCounts();
   const active = filteredBaseParcels().filter((parcel) => !parcel.archived).length;
-  const archived = state.parcels.filter((parcel) => parcel.archived).length;
+  const archived = state.parcels.filter((parcel) => !parcel.deleted && parcel.archived).length;
+  const deleted = state.parcels.filter((parcel) => parcel.deleted).length;
   els.summaryBar.innerHTML = [
     `<div class="summary-pill"><strong>${active}</strong> Active</div>`,
     ...STATUSES.map((status) => {
@@ -724,6 +729,7 @@ function renderSummaryBar() {
       </div>`;
     }),
     `<div class="summary-pill"><strong>${archived}</strong> Archived</div>`,
+    deleted ? `<div class="summary-pill"><strong>${deleted}</strong> Deleted</div>` : "",
   ].join("");
 }
 
@@ -934,9 +940,11 @@ function renderPanel() {
       </details>
 
       <div class="panel-actions">
+        <button class="ghost-btn" data-action="move-pin" type="button">Move Pin</button>
         <button class="danger-btn" data-action="${parcel.archived ? "unarchive" : "archive"}" type="button">
           ${parcel.archived ? "Restore Pin" : "Archive Pin"}
         </button>
+        <button class="danger-btn" data-action="delete-pin" type="button">Delete Pin</button>
       </div>
     </div>
   `;
@@ -1132,6 +1140,9 @@ function handlePanelClick(event) {
     case "remove-document":
       removeDocument(parcel, target.dataset.documentId);
       break;
+    case "move-pin":
+      startExistingPinPlacement(parcel);
+      break;
     case "archive":
       updateParcel(parcel.id, { archived: true, updatedAt: new Date().toISOString() });
       state.selectedId = null;
@@ -1142,6 +1153,9 @@ function handlePanelClick(event) {
       updateParcel(parcel.id, { archived: false, updatedAt: new Date().toISOString() });
       renderAll();
       toast("Pin restored");
+      break;
+    case "delete-pin":
+      deleteParcel(parcel);
       break;
   }
 }
@@ -1324,6 +1338,22 @@ function removeDocument(parcel, documentId) {
   toast("Document link removed");
 }
 
+function deleteParcel(parcel) {
+  const label = parcel.displayAddress || "this pin";
+  const confirmed = window.confirm(`Delete ${label} from the tracker? This removes it from the map and normal views.`);
+  if (!confirmed) return;
+  parcel.deleted = true;
+  parcel.archived = false;
+  parcel.deletedAt = new Date().toISOString();
+  parcel.deletedBy = getCurrentUserLabel();
+  parcel.updatedAt = new Date().toISOString();
+  markParcelDirty(parcel);
+  state.selectedId = null;
+  persistNow();
+  renderAll();
+  toast("Pin deleted");
+}
+
 function selectParcel(id) {
   state.selectedId = id;
   renderAll();
@@ -1386,7 +1416,7 @@ function getPipelineParcels() {
 }
 
 function filteredBaseParcels() {
-  return state.parcels.filter((parcel) => state.showArchived || !parcel.archived);
+  return state.parcels.filter((parcel) => !parcel.deleted && (state.showArchived || !parcel.archived));
 }
 
 function matchesSearch(parcel) {
@@ -1500,6 +1530,7 @@ function setFocusMode(on) {
 function openParcelModal() {
   els.parcelForm.reset();
   clearNewPinPreview();
+  state.placementMode = null;
   document.getElementById("newType").value = "Land";
   document.getElementById("newStatus").value = "Not Started";
   document.getElementById("newState").value = "FL";
@@ -1510,6 +1541,7 @@ function openParcelModal() {
 
 function closeParcelModal() {
   clearNewPinPreview();
+  if (state.placementMode?.type === "new") state.placementMode = null;
   els.parcelModal.close();
 }
 
@@ -1563,8 +1595,7 @@ function renderGeocodeCandidates(results) {
 function applyGeocodeResult(item, announce = true) {
   const lat = Number(item.lat);
   const lng = Number(item.lon);
-  document.getElementById("newLat").value = lat.toFixed(6);
-  document.getElementById("newLng").value = lng.toFixed(6);
+  setNewPinCoordinates(lat, lng);
   const address = item.address || {};
   if (!document.getElementById("newCity").value && (address.city || address.town || address.village)) {
     document.getElementById("newCity").value = address.city || address.town || address.village;
@@ -1590,10 +1621,20 @@ function setGeocodeResult(message, tone = "") {
 function useMapCenterForNewPin() {
   if (!map) return;
   const center = map.getCenter();
-  document.getElementById("newLat").value = center.lat.toFixed(6);
-  document.getElementById("newLng").value = center.lng.toFixed(6);
+  setNewPinCoordinates(center.lat, center.lng);
   showNewPinPreview(center.lat, center.lng, "Manual map center");
   setGeocodeResult("Coordinates set from the current map center.", "ok");
+}
+
+function startNewPinPlacement() {
+  state.placementMode = { type: "new" };
+  setGeocodeResult("Click the exact location on the map. You can drag/zoom first.", "ok");
+  toast("Click the map to place the new pin");
+}
+
+function setNewPinCoordinates(lat, lng) {
+  document.getElementById("newLat").value = Number(lat).toFixed(6);
+  document.getElementById("newLng").value = Number(lng).toFixed(6);
 }
 
 function refreshNewPinPreview() {
@@ -1631,6 +1672,36 @@ function clearNewPinPreview() {
   if (!newPinPreviewMarker) return;
   newPinPreviewMarker.remove();
   newPinPreviewMarker = null;
+}
+
+function startExistingPinPlacement(parcel) {
+  state.placementMode = { type: "existing", parcelId: parcel.id };
+  toast("Click the correct spot on the map to move this pin");
+}
+
+function handleMapClick(event) {
+  if (!state.placementMode) return;
+  const lat = event.latlng.lat;
+  const lng = event.latlng.lng;
+  if (state.placementMode.type === "new") {
+    setNewPinCoordinates(lat, lng);
+    showNewPinPreview(lat, lng, "Manually placed pin");
+    setGeocodeResult("Pin placed manually. Click Add Pin when ready.", "ok");
+    state.placementMode = null;
+    return;
+  }
+  if (state.placementMode.type === "existing") {
+    const parcel = state.parcels.find((item) => item.id === state.placementMode.parcelId);
+    state.placementMode = null;
+    if (!parcel) return;
+    parcel.lat = Number(lat.toFixed(6));
+    parcel.lng = Number(lng.toFixed(6));
+    parcel.updatedAt = new Date().toISOString();
+    markParcelDirty(parcel);
+    persistNow();
+    renderAll();
+    toast("Pin moved");
+  }
 }
 
 function addParcelFromForm(event) {
@@ -1696,6 +1767,7 @@ function addParcelFromForm(event) {
     documents: [],
     extraFields: {},
     archived: false,
+    deleted: false,
     createdAt: now,
     updatedAt: now,
   });
@@ -1847,6 +1919,7 @@ function parcelFromImportRow(row, headers, sourceName, sourceRow) {
     documents: [],
     extraFields: extraFieldsFromRow(row, headers),
     archived: false,
+    deleted: false,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   });
