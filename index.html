@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://unpkg.com">
     <link rel="preconnect" href="https://server.arcgisonline.com">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-    <link rel="stylesheet" href="./styles.css?v=20260522-1">
+    <link rel="stylesheet" href="./styles.css?v=20260522-2">
   </head>
   <body>
     <section class="access-gate" id="accessGate" hidden>
@@ -26,7 +26,10 @@
           <input id="authPassword" type="password" autocomplete="current-password" required>
         </label>
         <p class="access-error" id="accessError"></p>
-        <button class="primary-btn" type="submit">Sign In</button>
+        <div class="access-actions">
+          <button class="primary-btn" type="submit">Sign In</button>
+          <button class="ghost-btn" id="createAccountBtn" type="button">Create Account</button>
+        </div>
       </form>
     </section>
 
@@ -222,8 +225,8 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="./sales-comps.js?v=20260522-1"></script>
-    <script src="./supabase-config.js?v=20260522-1"></script>
-    <script src="./app.js?v=20260522-1"></script>
+    <script src="./sales-comps.js?v=20260522-2"></script>
+    <script src="./supabase-config.js?v=20260522-2"></script>
+    <script src="./app.js?v=20260522-2"></script>
   </body>
 </html>

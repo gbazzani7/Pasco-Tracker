@@ -34,7 +34,7 @@ This version can save two ways:
 - Local backup in your browser, so the tracker still works on your computer.
 - Shared Supabase database, so the same pins, statuses, notes, and activity can be used by multiple people.
 
-Supabase is configured in `supabase-config.js`. The app uses Supabase email/password login and database rules before it reads shared parcel data.
+Supabase is configured in `supabase-config.js`. The app uses Supabase email/password login and database rules before it reads shared parcel data. Approved users can create their own tracker password from the login screen after their email is added to `public.tracker_users`.
 
 ## Supabase Setup
 
@@ -44,8 +44,8 @@ Supabase is configured in `supabase-config.js`. The app uses Supabase email/pass
 4. Click `New query`.
 5. Paste the contents of `supabase-setup.sql`.
 6. Click `Run`.
-7. Open `Authentication` in Supabase and create the approved email/password user.
-8. Refresh the tracker at `http://127.0.0.1:4173/` and sign in.
+7. Open `Authentication` -> `URL Configuration` and set the live GitHub Pages tracker URL as the Site URL and an allowed Redirect URL for signup emails.
+8. Refresh the tracker at `http://127.0.0.1:4173/` and sign in or create the first approved account.
 
 The sync label should change from local autosave to shared sync once the database table exists.
 

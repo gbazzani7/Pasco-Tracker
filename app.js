@@ -114,10 +114,7 @@ function resetLocalStateIfRequested() {
 function bindAccessEvents() {
   els.accessForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (!sharedClient) {
-      els.accessError.textContent = "Shared login is not configured yet.";
-      return;
-    }
+    if (!canUseAuth()) return;
     els.accessError.textContent = "Signing in...";
     const { data, error } = await sharedClient.auth.signInWithPassword({
       email: els.authEmail.value.trim(),
@@ -132,6 +129,30 @@ function bindAccessEvents() {
     els.accessError.textContent = "";
     await initializeTracker(data.user);
   });
+
+  els.createAccountBtn.addEventListener("click", async () => {
+    if (!els.accessForm.reportValidity() || !canUseAuth()) return;
+    els.accessError.textContent = "Creating account...";
+    const { data, error } = await sharedClient.auth.signUp({
+      email: els.authEmail.value.trim(),
+      password: els.authPassword.value,
+      options: {
+        emailRedirectTo: getTrackerRedirectUrl(),
+      },
+    });
+    if (error) {
+      els.accessError.textContent = error.message || "Account creation failed.";
+      return;
+    }
+    if (data.session?.user) {
+      els.authPassword.value = "";
+      els.accessError.textContent = "";
+      await initializeTracker(data.session.user);
+      return;
+    }
+    els.authPassword.value = "";
+    els.accessError.textContent = "Account created. Check your email to confirm it, then sign in.";
+  });
 }
 
 function showAccessGate(message = "") {
@@ -140,6 +161,16 @@ function showAccessGate(message = "") {
   els.accessError.textContent = message;
   els.authPassword.value = "";
   els.authEmail.focus();
+}
+
+function canUseAuth() {
+  if (sharedClient) return true;
+  els.accessError.textContent = "Shared login is not configured yet.";
+  return false;
+}
+
+function getTrackerRedirectUrl() {
+  return `${window.location.origin}${window.location.pathname}`;
 }
 
 function renderCurrentUser() {
@@ -152,6 +183,7 @@ function cacheElements() {
   els.accessForm = document.getElementById("accessForm");
   els.authEmail = document.getElementById("authEmail");
   els.authPassword = document.getElementById("authPassword");
+  els.createAccountBtn = document.getElementById("createAccountBtn");
   els.accessError = document.getElementById("accessError");
   els.map = document.getElementById("map");
   els.worklist = document.getElementById("worklist");
