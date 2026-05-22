@@ -267,6 +267,7 @@ button {
 .bell-btn:hover,
 .filter-btn:hover,
 .segmented button:hover,
+.pin-visibility button:hover,
 .archive-toggle:hover {
   border-color: var(--line-strong);
   background: rgba(255, 255, 255, 0.1);
@@ -338,7 +339,8 @@ button {
 }
 
 .segmented,
-.view-toggle {
+.view-toggle,
+.pin-visibility {
   display: flex;
   overflow: hidden;
   border: 1px solid var(--line);
@@ -346,7 +348,8 @@ button {
 }
 
 .segmented button,
-.view-toggle button {
+.view-toggle button,
+.pin-visibility button {
   min-height: 32px;
   border: 0;
   border-radius: 0;
@@ -365,6 +368,11 @@ button {
 
 .view-toggle button.active {
   background: rgba(59, 130, 246, 0.2);
+  color: var(--text);
+}
+
+.pin-visibility button.active {
+  background: rgba(247, 201, 72, 0.17);
   color: var(--text);
 }
 
@@ -753,6 +761,10 @@ tbody tr:hover {
   filter: grayscale(1);
 }
 
+.sales-comp-dot {
+  filter: drop-shadow(0 3px 7px rgba(0, 0, 0, 0.62));
+}
+
 .map-tooltip {
   min-width: 180px;
   padding: 6px 7px;
@@ -780,6 +792,45 @@ tbody tr:hover {
   border: 0;
   background: transparent;
   box-shadow: none;
+}
+
+.comp-popup-card {
+  min-width: 180px;
+  color: #141414;
+  font-family: inherit;
+}
+
+.comp-popup-card strong,
+.comp-popup-card span {
+  display: block;
+}
+
+.comp-popup-card strong {
+  margin-bottom: 3px;
+  font-size: 13px;
+}
+
+.comp-popup-card span {
+  color: #555;
+  font-size: 11px;
+}
+
+.comp-popup-card dl {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 5px 10px;
+  margin: 10px 0 0;
+  font-size: 12px;
+}
+
+.comp-popup-card dt {
+  color: #666;
+}
+
+.comp-popup-card dd {
+  margin: 0;
+  font-weight: 700;
+  text-align: right;
 }
 
 .side-panel {
@@ -1050,8 +1101,18 @@ tbody tr:hover {
   gap: 12px;
 }
 
-.deal-snapshot-title {
+.deal-snapshot-title,
+.panel-work-title,
+.property-reference-title {
   margin: 12px 0 8px;
+}
+
+.panel-work-title {
+  margin-top: 2px;
+}
+
+.panel-notes-field {
+  margin-bottom: 12px;
 }
 
 .snapshot-grid {

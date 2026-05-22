@@ -14,6 +14,8 @@ This is a clean rebuild of the Pasco SR-52 parcel tracker.
   - Under LOI
   - Dead
 - Pin color is based on outreach status.
+- Toggle target pins and sales comp dots independently on the map.
+- SR-52 sales comps show only address, sale amount, sale date, acres, and price per acre.
 - Click a pin or worklist row to edit property details, owner/contact details, status, last contacted date, follow-up date, next step, property notes, activity log, follow-ups, and document links.
 - Worklist on the left for quickly scanning parcels without hunting on the map.
 - Map, Pipeline, and List views all connected to the same parcel data.
@@ -21,7 +23,7 @@ This is a clean rebuild of the Pasco SR-52 parcel tracker.
 - Activity log for dated call, email, meeting, text, and research history.
 - Lightweight follow-ups for next steps and dates.
 - Add a new pin manually or by locating an address.
-- Archive pins instead of permanently deleting them.
+- Archive or delete pins that no longer belong in the active tracker.
 - Search, status filters, property type filter, and CSV export.
 - Import future parcel lists from Excel, CSV, or tracker JSON. The import preview keeps existing parcels and adds only new ones.
 
@@ -32,7 +34,7 @@ This version can save two ways:
 - Local backup in your browser, so the tracker still works on your computer.
 - Shared Supabase database, so the same pins, statuses, notes, and activity can be used by multiple people.
 
-Supabase is configured in `supabase-config.js`. The app will seed the Supabase `parcels` table from the local parcel list the first time it connects to an empty shared database.
+Supabase is configured in `supabase-config.js`. The app uses Supabase email/password login and database rules before it reads shared parcel data.
 
 ## Supabase Setup
 
@@ -42,11 +44,12 @@ Supabase is configured in `supabase-config.js`. The app will seed the Supabase `
 4. Click `New query`.
 5. Paste the contents of `supabase-setup.sql`.
 6. Click `Run`.
-7. Refresh the tracker at `http://127.0.0.1:4173/`.
+7. Open `Authentication` in Supabase and create the approved email/password user.
+8. Refresh the tracker at `http://127.0.0.1:4173/` and sign in.
 
 The sync label should change from local autosave to shared sync once the database table exists.
 
-For this first shared version, the public app key can read and update the parcel table. That is simple and fine for a small private working prototype, but before sending the tracker widely, we should add real user accounts or a tighter access rule.
+The SQL allowlist starts with `gregg.bazzani1@gmail.com`. To approve another login later, create that user in Supabase Authentication and add the email to `public.tracker_users`.
 
 ## Local Preview
 
@@ -77,6 +80,14 @@ One row was skipped because it had no latitude or longitude:
 ```text
 Excel row 5: 7401 RT 52
 ```
+
+Sales comps were generated from the first tab of:
+
+```text
+C:\Users\Owner\Documents\Business\Tampa Database\Data\Pasco\Pasco 52 Land Comp Database.xlsx
+```
+
+The comp layer includes comp rows with the required sale fields and a geocoder-confirmed address. Rows without a reliable map location are skipped until they can be located confidently.
 
 ## For Future Imports
 

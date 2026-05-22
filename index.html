@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://unpkg.com">
     <link rel="preconnect" href="https://server.arcgisonline.com">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-    <link rel="stylesheet" href="./styles.css">
+    <link rel="stylesheet" href="./styles.css?v=20260522-1">
   </head>
   <body>
     <section class="access-gate" id="accessGate" hidden>
@@ -15,22 +15,18 @@
         <div>
           <span class="access-kicker">Private Tracker</span>
           <h1>Pasco Site Tracker</h1>
-          <p>Enter the shared access code and choose your name.</p>
+          <p>Sign in with an approved tracker email.</p>
         </div>
         <label>
-          Name
-          <select id="accessUser">
-            <option>Gregg</option>
-            <option>Craig</option>
-            <option>Other User</option>
-          </select>
+          Email
+          <input id="authEmail" type="email" autocomplete="username" required>
         </label>
         <label>
-          Access Code
-          <input id="accessCode" type="password" autocomplete="current-password">
+          Password
+          <input id="authPassword" type="password" autocomplete="current-password" required>
         </label>
         <p class="access-error" id="accessError"></p>
-        <button class="primary-btn" type="submit">Open Tracker</button>
+        <button class="primary-btn" type="submit">Sign In</button>
       </form>
     </section>
 
@@ -51,6 +47,11 @@
         <button class="active" data-view="map" type="button">Map</button>
         <button data-view="pipeline" type="button">Pipeline</button>
         <button data-view="list" type="button">List</button>
+      </div>
+
+      <div class="pin-visibility" aria-label="Map pins">
+        <button class="active" id="targetsBtn" type="button">Targets</button>
+        <button id="compsBtn" type="button">Sales Comps</button>
       </div>
 
       <nav class="status-filters" id="statusFilters" aria-label="Status filters"></nav>
@@ -221,7 +222,8 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="./supabase-config.js"></script>
-    <script src="./app.js"></script>
+    <script src="./sales-comps.js?v=20260522-1"></script>
+    <script src="./supabase-config.js?v=20260522-1"></script>
+    <script src="./app.js?v=20260522-1"></script>
   </body>
 </html>

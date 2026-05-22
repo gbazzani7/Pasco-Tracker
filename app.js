@@ -14,16 +14,16 @@ const SUPABASE_TABLE = "parcels";
 const LOCAL_SAVE_DELAY = 350;
 const SHARED_SAVE_DELAY = 900;
 const SHARED_REFRESH_MS = 25000;
-const ACCESS_CODE = "pasco52";
-const ACCESS_SESSION_KEY = "pasco-site-tracker-access";
-const USER_KEY = "pasco-site-tracker-user";
 
 const state = {
   parcels: [],
+  salesComps: Array.isArray(window.PASCO_SALES_COMPS) ? window.PASCO_SALES_COMPS : [],
   selectedId: null,
   activeStatus: "all",
   search: "",
   showArchived: false,
+  showTargets: true,
+  showComps: false,
   notificationsOpen: false,
   layerMode: "satellite",
   viewMode: "map",
@@ -31,7 +31,8 @@ const state = {
   pendingImport: [],
   dirtyParcelIds: new Set(),
   sharedMode: false,
-  currentUser: "Gregg",
+  authUser: null,
+  currentUser: "Signed In",
   chromeBound: false,
   placementMode: null,
 };
@@ -40,6 +41,7 @@ let map;
 let roadLayer;
 let satelliteLayer;
 let markers = new Map();
+let compMarkers = new Map();
 let newPinPreviewMarker;
 let saveTimer;
 let sharedClient;
@@ -54,17 +56,34 @@ document.addEventListener("DOMContentLoaded", start);
 async function start() {
   cacheElements();
   bindAccessEvents();
-  if (!hasAccess()) {
+  try {
+    sharedClient = createSupabaseClient();
+    if (!sharedClient) {
+      showAccessGate("Shared login is not configured yet.");
+      return;
+    }
+    const { data, error } = await sharedClient.auth.getSession();
+    if (error) throw error;
+    if (!data.session?.user) {
+      showAccessGate();
+      return;
+    }
+    await initializeTracker(data.session.user);
+  } catch (error) {
+    console.error(error);
+    showAccessGate("Could not reach the sign-in service. Refresh and try again.");
+  }
+}
+
+async function initializeTracker(authUser) {
+  if (!authUser) {
     showAccessGate();
     return;
   }
-  await initializeTracker();
-}
-
-async function initializeTracker() {
   document.body.classList.remove("locked");
   els.accessGate.hidden = true;
-  state.currentUser = localStorage.getItem(USER_KEY) || "Gregg";
+  state.authUser = authUser;
+  state.currentUser = getUserLabel(authUser);
   renderCurrentUser();
   bindChromeEvents();
   renderStatusControls();
@@ -95,41 +114,44 @@ function resetLocalStateIfRequested() {
 function bindAccessEvents() {
   els.accessForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const code = els.accessCode.value.trim();
-    if (code !== ACCESS_CODE) {
-      els.accessError.textContent = "That access code is not correct.";
-      els.accessCode.select();
+    if (!sharedClient) {
+      els.accessError.textContent = "Shared login is not configured yet.";
       return;
     }
-    const user = els.accessUser.value || "Gregg";
-    localStorage.setItem(ACCESS_SESSION_KEY, "ok");
-    localStorage.setItem(USER_KEY, user);
+    els.accessError.textContent = "Signing in...";
+    const { data, error } = await sharedClient.auth.signInWithPassword({
+      email: els.authEmail.value.trim(),
+      password: els.authPassword.value,
+    });
+    if (error || !data.user) {
+      els.accessError.textContent = error?.message || "Sign-in failed.";
+      els.authPassword.select();
+      return;
+    }
+    els.authPassword.value = "";
     els.accessError.textContent = "";
-    await initializeTracker();
+    await initializeTracker(data.user);
   });
 }
 
-function hasAccess() {
-  return localStorage.getItem(ACCESS_SESSION_KEY) === "ok";
-}
-
-function showAccessGate() {
+function showAccessGate(message = "") {
   document.body.classList.add("locked");
   els.accessGate.hidden = false;
-  els.accessUser.value = localStorage.getItem(USER_KEY) || "Gregg";
-  els.accessCode.value = "";
-  els.accessCode.focus();
+  els.accessError.textContent = message;
+  els.authPassword.value = "";
+  els.authEmail.focus();
 }
 
 function renderCurrentUser() {
   els.userBtn.textContent = state.currentUser;
+  els.userBtn.title = "Sign out";
 }
 
 function cacheElements() {
   els.accessGate = document.getElementById("accessGate");
   els.accessForm = document.getElementById("accessForm");
-  els.accessUser = document.getElementById("accessUser");
-  els.accessCode = document.getElementById("accessCode");
+  els.authEmail = document.getElementById("authEmail");
+  els.authPassword = document.getElementById("authPassword");
   els.accessError = document.getElementById("accessError");
   els.map = document.getElementById("map");
   els.worklist = document.getElementById("worklist");
@@ -143,6 +165,8 @@ function cacheElements() {
   els.notificationBtn = document.getElementById("notificationBtn");
   els.notificationCount = document.getElementById("notificationCount");
   els.searchInput = document.getElementById("searchInput");
+  els.targetsBtn = document.getElementById("targetsBtn");
+  els.compsBtn = document.getElementById("compsBtn");
   els.showArchived = document.getElementById("showArchived");
   els.syncState = document.getElementById("syncState");
   els.toast = document.getElementById("toast");
@@ -246,14 +270,12 @@ function mergeSavedState(baseParcels, savedState) {
 
 async function loadInitialParcels(baseParcels) {
   const localParcels = mergeSavedState(baseParcels, loadSavedState());
-  const config = getSupabaseConfig();
-  if (!config) {
+  if (!sharedClient) {
     return localParcels;
   }
 
   try {
     setSync("Connecting shared");
-    sharedClient = window.supabase.createClient(config.url, config.anonKey);
     state.sharedMode = true;
     const sharedParcels = await loadSharedParcels();
 
@@ -275,6 +297,11 @@ async function loadInitialParcels(baseParcels) {
   }
 }
 
+function createSupabaseClient() {
+  const config = getSupabaseConfig();
+  return config ? window.supabase.createClient(config.url, config.anonKey) : null;
+}
+
 function getSupabaseConfig() {
   const config = window.PASCO_SUPABASE || {};
   if (!config.enabled || !config.url || !config.anonKey) return null;
@@ -282,6 +309,12 @@ function getSupabaseConfig() {
     throw new Error("Supabase library did not load.");
   }
   return config;
+}
+
+function getUserLabel(user = state.authUser) {
+  const email = String(user?.email || "").trim();
+  if (email.toLowerCase() === "gregg.bazzani1@gmail.com") return "Gregg";
+  return user?.user_metadata?.display_name || email || "Signed In";
 }
 
 async function loadSharedParcels() {
@@ -441,6 +474,17 @@ function bindChromeEvents() {
     renderAll();
   });
 
+  els.targetsBtn.addEventListener("click", () => {
+    state.showTargets = !state.showTargets;
+    renderPinVisibilityControls();
+    renderMarkers();
+  });
+  els.compsBtn.addEventListener("click", () => {
+    state.showComps = !state.showComps;
+    renderPinVisibilityControls();
+    renderMarkers();
+  });
+
   els.satelliteBtn.addEventListener("click", () => setLayerMode("satellite"));
   els.roadBtn.addEventListener("click", () => setLayerMode("road"));
   els.notificationBtn.addEventListener("click", () => {
@@ -449,9 +493,9 @@ function bindChromeEvents() {
   });
   els.focusBtn.addEventListener("click", () => setFocusMode(true));
   els.focusExitBtn.addEventListener("click", () => setFocusMode(false));
-  els.userBtn.addEventListener("click", () => {
-    localStorage.removeItem(ACCESS_SESSION_KEY);
-    showAccessGate();
+  els.userBtn.addEventListener("click", async () => {
+    await sharedClient?.auth.signOut();
+    window.location.reload();
   });
   els.saveBtn.addEventListener("click", () => {
     persistNow();
@@ -502,6 +546,7 @@ function initMap() {
 
 function renderAll() {
   renderStatusControls();
+  renderPinVisibilityControls();
   renderViewMode();
   renderWorklist();
   renderMarkers();
@@ -510,6 +555,11 @@ function renderAll() {
   renderSummaryBar();
   renderNotifications();
   renderPanel();
+}
+
+function renderPinVisibilityControls() {
+  els.targetsBtn.classList.toggle("active", state.showTargets);
+  els.compsBtn.classList.toggle("active", state.showComps);
 }
 
 function renderStatusControls() {
@@ -696,23 +746,50 @@ function renderMarkers() {
   if (!map) return;
   markers.forEach((marker) => marker.remove());
   markers = new Map();
+  compMarkers.forEach((marker) => marker.remove());
+  compMarkers = new Map();
 
-  const visible = getMappableParcels(getVisibleParcels());
-  visible.forEach((parcel) => {
-    const marker = L.marker([parcel.lat, parcel.lng], {
-      icon: makeMarkerIcon(parcel),
-      keyboard: true,
+  if (state.showTargets) {
+    const visible = getMappableParcels(getVisibleParcels());
+    visible.forEach((parcel) => {
+      const marker = L.marker([parcel.lat, parcel.lng], {
+        icon: makeMarkerIcon(parcel),
+        keyboard: true,
+      });
+      marker.bindTooltip(makeTooltip(parcel), {
+        direction: "top",
+        offset: [0, -30],
+        opacity: 1,
+        className: "leaflet-tooltip",
+      });
+      marker.on("click", () => selectParcel(parcel.id));
+      marker.addTo(map);
+      markers.set(parcel.id, marker);
     });
-    marker.bindTooltip(makeTooltip(parcel), {
-      direction: "top",
-      offset: [0, -30],
-      opacity: 1,
-      className: "leaflet-tooltip",
+  }
+
+  if (state.showComps) {
+    state.salesComps.filter(hasUsableCoordinates).forEach((comp) => {
+      const marker = L.circleMarker([comp.lat, comp.lng], {
+        radius: 7,
+        color: "#fff7cc",
+        weight: 2,
+        fillColor: "#f7c948",
+        fillOpacity: 0.95,
+        className: "sales-comp-dot",
+      });
+      marker.bindPopup(makeSalesCompPopup(comp), {
+        className: "sales-comp-popup",
+      });
+      marker.bindTooltip(`${escapeHtml(comp.address)}, ${escapeHtml(comp.city)}`, {
+        direction: "top",
+        opacity: 1,
+        className: "leaflet-tooltip comp-tooltip",
+      });
+      marker.addTo(map);
+      compMarkers.set(comp.id, marker);
     });
-    marker.on("click", () => selectParcel(parcel.id));
-    marker.addTo(map);
-    markers.set(parcel.id, marker);
-  });
+  }
 }
 
 function renderSummaryBar() {
@@ -810,14 +887,12 @@ function renderPanel() {
       </div>
     </div>
     <div class="panel-scroll">
-      <div class="metric-row">
-        <div class="metric"><strong>${formatNumber(parcel.acres, 2)}</strong><span>Acres</span></div>
-        <div class="metric"><strong>${formatMoney(parcel.assessedValue)}</strong><span>Assessed</span></div>
-        <div class="metric"><strong>${formatMoney(parcel.taxes)}</strong><span>Taxes</span></div>
+      <div class="section-title panel-work-title">Property Notes And Follow-Up</div>
+      <div class="detail-field panel-notes-field">
+        <label for="panelNotes">Property Notes</label>
+        <textarea id="panelNotes" data-bind="notes" rows="5">${escapeHtml(parcel.notes || "")}</textarea>
       </div>
-
-      <div class="section-title deal-snapshot-title">Deal Snapshot</div>
-      <div class="detail-grid snapshot-grid">
+      <div class="detail-grid snapshot-grid panel-followup-grid">
         <div class="detail-field">
           <label for="panelPriority">Priority</label>
           ${renderSelect("panelPriority", "priority", PRIORITIES, parcel.priority || "Normal")}
@@ -830,40 +905,8 @@ function renderPanel() {
           <label for="lastContacted">Last Contacted</label>
           <input id="lastContacted" type="date" data-bind="lastContacted" value="${escapeAttr(parcel.lastContacted || "")}">
         </div>
-        <div class="detail-field">
-          <label for="panelType">Type</label>
-          <input id="panelType" type="text" data-bind="type" value="${escapeAttr(parcel.type || "")}">
-        </div>
         ${textField("Next Step", "nextAction", parcel.nextAction, "wide")}
       </div>
-
-      <div class="section-title deal-snapshot-title">Key Property Info</div>
-      <div class="detail-grid snapshot-grid">
-        ${numberField("Acres", "acres", parcel.acres, "0.01")}
-        ${numberField("Assessed Value", "assessedValue", parcel.assessedValue, "1")}
-        ${numberField("Taxes", "taxes", parcel.taxes, "1")}
-        ${textField("Zoning", "zoning", parcel.zoning)}
-        ${textField("Opp Zone", "oppZone", parcel.oppZone)}
-        ${textField("Crexi Link", "crexiLink", parcel.crexiLink, "wide")}
-      </div>
-
-      ${renderPinActions(parcel)}
-
-      <div class="detail-field" style="margin-top:12px">
-        <label for="panelNotes">Property Notes</label>
-        <textarea id="panelNotes" data-bind="notes" rows="5">${escapeHtml(parcel.notes || "")}</textarea>
-      </div>
-
-      <details open>
-        <summary>Needs Attention</summary>
-        <div class="attention-form">
-          <input id="attentionText" type="text" placeholder="Example: Owner wants Gregg to call">
-          <button class="primary-btn" data-action="add-attention" type="button">Notify</button>
-        </div>
-        <div class="attention-list">
-          ${renderAttentionItems(parcel)}
-        </div>
-      </details>
 
       <details open>
         <summary>Follow-Ups</summary>
@@ -874,6 +917,17 @@ function renderPanel() {
         </div>
         <div class="action-list">
           ${renderActions(parcel)}
+        </div>
+      </details>
+
+      <details open>
+        <summary>Needs Attention</summary>
+        <div class="attention-form">
+          <input id="attentionText" type="text" placeholder="Example: Owner wants Gregg to call">
+          <button class="primary-btn" data-action="add-attention" type="button">Notify</button>
+        </div>
+        <div class="attention-list">
+          ${renderAttentionItems(parcel)}
         </div>
       </details>
 
@@ -897,6 +951,38 @@ function renderPanel() {
         </div>
       </details>
 
+      <details open>
+        <summary>Owner And Contact</summary>
+        <div class="detail-grid">
+          ${textField("Owner Name", "owner.name", parcel.owner.name, "wide")}
+          ${textField("Mailing Address", "owner.mailingAddress", parcel.owner.mailingAddress, "wide")}
+          ${textField("Mailing City", "owner.mailingCity", parcel.owner.mailingCity)}
+          ${textField("Mailing State", "owner.mailingState", parcel.owner.mailingState)}
+          ${textField("Mailing Zip", "owner.mailingZip", parcel.owner.mailingZip)}
+          ${textField("Contact Name", "contact.name", parcel.contact.name)}
+          ${textareaField("Phones", "contact.phones", phones)}
+          ${textareaField("Emails", "contact.emails", emails)}
+        </div>
+      </details>
+
+      <div class="section-title property-reference-title">Property Info</div>
+      <div class="metric-row">
+        <div class="metric"><strong>${formatNumber(parcel.acres, 2)}</strong><span>Acres</span></div>
+        <div class="metric"><strong>${formatMoney(parcel.assessedValue)}</strong><span>Assessed</span></div>
+        <div class="metric"><strong>${formatMoney(parcel.taxes)}</strong><span>Taxes</span></div>
+      </div>
+      <div class="detail-grid snapshot-grid">
+        ${numberField("Acres", "acres", parcel.acres, "0.01")}
+        ${numberField("Assessed Value", "assessedValue", parcel.assessedValue, "1")}
+        ${numberField("Taxes", "taxes", parcel.taxes, "1")}
+        ${textField("Zoning", "zoning", parcel.zoning)}
+        ${textField("Opp Zone", "oppZone", parcel.oppZone)}
+        ${textField("Type", "type", parcel.type)}
+        ${textField("Crexi Link", "crexiLink", parcel.crexiLink, "wide")}
+      </div>
+
+      ${renderPinActions(parcel)}
+
       <details>
         <summary>Property</summary>
         <div class="detail-grid">
@@ -914,20 +1000,6 @@ function renderPanel() {
       </details>
 
       ${renderExtraDetails(parcel)}
-
-      <details>
-        <summary>Owner And Contact</summary>
-        <div class="detail-grid">
-          ${textField("Owner Name", "owner.name", parcel.owner.name, "wide")}
-          ${textField("Mailing Address", "owner.mailingAddress", parcel.owner.mailingAddress, "wide")}
-          ${textField("Mailing City", "owner.mailingCity", parcel.owner.mailingCity)}
-          ${textField("Mailing State", "owner.mailingState", parcel.owner.mailingState)}
-          ${textField("Mailing Zip", "owner.mailingZip", parcel.owner.mailingZip)}
-          ${textField("Contact Name", "contact.name", parcel.contact.name)}
-          ${textareaField("Phones", "contact.phones", phones)}
-          ${textareaField("Emails", "contact.emails", emails)}
-        </div>
-      </details>
 
       <details>
         <summary>Documents</summary>
@@ -1406,6 +1478,19 @@ function makeTooltip(parcel) {
   </div>`;
 }
 
+function makeSalesCompPopup(comp) {
+  return `<div class="comp-popup-card">
+    <strong>${escapeHtml(comp.address)}</strong>
+    <span>${escapeHtml(comp.city)}, ${escapeHtml(comp.state || "FL")}</span>
+    <dl>
+      <dt>Sale Amount</dt><dd>${escapeHtml(formatMoney(comp.saleAmount))}</dd>
+      <dt>Sale Date</dt><dd>${escapeHtml(comp.saleDate || "")}</dd>
+      <dt>Acres</dt><dd>${escapeHtml(formatNumber(comp.acres, 2))}</dd>
+      <dt>Price / Acre</dt><dd>${escapeHtml(formatMoney(comp.pricePerAcre))}</dd>
+    </dl>
+  </div>`;
+}
+
 function getVisibleParcels() {
   return filteredBaseParcels().filter((parcel) => {
     if (state.activeStatus !== "all" && parcel.status !== state.activeStatus) return false;
@@ -1502,7 +1587,7 @@ function getOpenAttentionItems(parcel) {
 }
 
 function getCurrentUserLabel() {
-  return state.currentUser || localStorage.getItem(USER_KEY) || "Gregg";
+  return state.currentUser || "Signed In";
 }
 
 function getStatus(name) {
